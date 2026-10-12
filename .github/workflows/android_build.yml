@@ -1,0 +1,31 @@
+name: Build Android APK
+
+# This tells GitHub to run the build every time you update main.py
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: # Allows you to trigger builds manually from the GitHub website
+
+jobs:
+  build-android:
+    name: Compile with Buildozer
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      # This action automatically provisions the Linux environment and runs Buildozer
+      - name: Build with Buildozer
+        uses: ArtemSBulgakov/buildozer-action@v1
+        id: buildozer
+        with:
+          command: buildozer android debug
+          buildozer_version: stable
+
+      # This step takes the finished .apk and uploads it to your GitHub page so you can download it
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-android-game
+          path: bin/*.apk
