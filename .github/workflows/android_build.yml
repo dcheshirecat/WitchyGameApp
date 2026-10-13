@@ -24,20 +24,29 @@ jobs:
           pip install --upgrade Cython==0.29.33 virtualenv
           pip install buildozer
 
-      - name: Build APK
+      - name: Build APK (with Error Capture)
         run: |
-          yes | buildozer -v android debug
+          # Capture output to build_log.txt while displaying it live
+          yes | buildozer -v android debug | tee build_log.txt
+          
+      # This step ONLY runs if the previous 'Build APK' step crashes
+      - name: 🚨 PRINT EXACT ERROR (If Build Fails) 🚨
+        if: failure()
+        run: |
+          echo "========================================================"
+          echo "BUILD FAILED! HERE IS THE ACTUAL CAUSE OF THE CRASH:"
+          echo "========================================================"
+          # Print the last 150 lines of the log to find the exception
+          tail -n 150 build_log.txt
+          echo "========================================================"
 
-      # NEW STEP: Find the APK wherever Buildozer hid it and move it
       - name: Locate APK
         run: |
           mkdir -p final_apk_upload
-          # Search everywhere for an .apk and move it to our new folder
           find . -name "*.apk" -exec mv {} final_apk_upload/ \;
           echo "Prepared the following APK for upload:"
           ls -la final_apk_upload/
 
-      # UPDATED STEP: Upload the specific folder, and fail loudly if empty
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
