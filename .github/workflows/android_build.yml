@@ -8,36 +8,39 @@ on:
 jobs:
   build-android:
     name: Compile with Buildozer
-    runs-on: ubuntu-22.04 # Pinning to a specific, stable Ubuntu version
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      # Install all the Linux dependencies Buildozer needs
       - name: Install System Dependencies
         run: |
           sudo apt update
           sudo apt install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
 
-      # Install Buildozer directly via pip (no Docker needed)
       - name: Install Buildozer
         run: |
           pip install --upgrade Cython==0.29.33 virtualenv
           pip install buildozer
 
-      # Generate default spec file if you don't have one
-      - name: Init Buildozer
+      - name: Build APK (with Error Capture)
         run: |
-          if [ ! -f "buildozer.spec" ]; then buildozer init; fi
+          # The 'tee' command lets us see the progress live while also saving it to a file
+          yes | buildozer -v android debug | tee build_log.txt
 
-      # Auto-accept the Android SDK licenses and run the build
-      - name: Build APK
+      - name: 🚨 PRINT EXACT ERROR (If Build Fails) 🚨
+        if: failure()
         run: |
-          yes | buildozer -v android debug
+          echo "========================================================"
+          echo "BUILD FAILED! HERE IS THE ACTUAL CAUSE OF THE CRASH:"
+          echo "========================================================"
+          # This prints just the last 100 lines of the saved log
+          tail -n 100 build_log.txt
+          echo "========================================================"
 
-      # Upload the finished APK to GitHub Artifacts
       - name: Upload APK Artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: my-android-game
