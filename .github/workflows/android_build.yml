@@ -1,29 +1,42 @@
 name: Build Android APK
 
-# This tells GitHub to run the build every time you update main.py
 on:
   push:
     branches: [ main ]
-  workflow_dispatch: # Allows you to trigger builds manually from the GitHub website
+  workflow_dispatch:
 
 jobs:
   build-android:
     name: Compile with Buildozer
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04 # Pinning to a specific, stable Ubuntu version
 
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      # This action automatically provisions the Linux environment and runs Buildozer
-      - name: Build with Buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1
-        id: buildozer
-        with:
-          command: buildozer android debug
-          buildozer_version: stable
+      # Install all the Linux dependencies Buildozer needs
+      - name: Install System Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
 
-      # This step takes the finished .apk and uploads it to your GitHub page so you can download it
+      # Install Buildozer directly via pip (no Docker needed)
+      - name: Install Buildozer
+        run: |
+          pip install --upgrade Cython==0.29.33 virtualenv
+          pip install buildozer
+
+      # Generate default spec file if you don't have one
+      - name: Init Buildozer
+        run: |
+          if [ ! -f "buildozer.spec" ]; then buildozer init; fi
+
+      # Auto-accept the Android SDK licenses and run the build
+      - name: Build APK
+        run: |
+          yes | buildozer -v android debug
+
+      # Upload the finished APK to GitHub Artifacts
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
