@@ -24,24 +24,23 @@ jobs:
           pip install --upgrade Cython==0.29.33 virtualenv
           pip install buildozer
 
-      - name: Build APK (with Error Capture)
+      - name: Build APK
         run: |
-          # The 'tee' command lets us see the progress live while also saving it to a file
-          yes | buildozer -v android debug | tee build_log.txt
+          yes | buildozer -v android debug
 
-      - name: 🚨 PRINT EXACT ERROR (If Build Fails) 🚨
-        if: failure()
+      # NEW STEP: Find the APK wherever Buildozer hid it and move it
+      - name: Locate APK
         run: |
-          echo "========================================================"
-          echo "BUILD FAILED! HERE IS THE ACTUAL CAUSE OF THE CRASH:"
-          echo "========================================================"
-          # This prints just the last 100 lines of the saved log
-          tail -n 100 build_log.txt
-          echo "========================================================"
+          mkdir -p final_apk_upload
+          # Search everywhere for an .apk and move it to our new folder
+          find . -name "*.apk" -exec mv {} final_apk_upload/ \;
+          echo "Prepared the following APK for upload:"
+          ls -la final_apk_upload/
 
+      # UPDATED STEP: Upload the specific folder, and fail loudly if empty
       - name: Upload APK Artifact
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: my-android-game
-          path: bin/*.apk
+          path: final_apk_upload/
+          if-no-files-found: error
