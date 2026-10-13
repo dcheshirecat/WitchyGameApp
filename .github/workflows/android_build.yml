@@ -26,17 +26,16 @@ jobs:
 
       - name: Build APK (with Error Capture)
         run: |
-          # Capture output to build_log.txt while displaying it live
+          # set -o pipefail ensures that if buildozer crashes, the whole step is marked as failed, even when using 'tee'
+          set -o pipefail
           yes | buildozer -v android debug | tee build_log.txt
           
-      # This step ONLY runs if the previous 'Build APK' step crashes
       - name: 🚨 PRINT EXACT ERROR (If Build Fails) 🚨
         if: failure()
         run: |
           echo "========================================================"
           echo "BUILD FAILED! HERE IS THE ACTUAL CAUSE OF THE CRASH:"
           echo "========================================================"
-          # Print the last 150 lines of the log to find the exception
           tail -n 150 build_log.txt
           echo "========================================================"
 
