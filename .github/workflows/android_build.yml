@@ -29,22 +29,11 @@ jobs:
           pip install --upgrade Cython==0.29.33 virtualenv
           pip install git+https://github.com/kivy/buildozer.git@master
 
-      - name: Init Buildozer Spec (If missing)
-        run: |
-          if [ ! -f "buildozer.spec" ]; then buildozer init; fi
-          # Correctly replace the values whether they are commented out or not
-          sed -i 's/.*android.api = .*/android.api = 33/' buildozer.spec
-          sed -i 's/.*android.minapi = .*/android.minapi = 24/' buildozer.spec
-          sed -i 's/.*android.ndk_api = .*/android.ndk_api = 24/' buildozer.spec
-          # Set the accept_sdk_license to True to avoid hangs
-          sed -i 's/.*android.accept_sdk_license = .*/android.accept_sdk_license = True/' buildozer.spec
-
       - name: Build APK (with Error Capture)
-        id: build
         run: |
           set -o pipefail
           yes | buildozer -v android debug | tee build_log.txt || echo "build_failed=true" >> $GITHUB_ENV
-          
+
       - name: 🚨 PRINT EXACT ERROR (If Build Fails) 🚨
         if: env.build_failed == 'true'
         run: |
