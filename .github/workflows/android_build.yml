@@ -1,13 +1,14 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
 jobs:
   build-android:
-    name: Compile with Buildozer
-    runs-on: ubuntu-22.04
 
-    steps:
-      - name: Checkout Source Code
-        uses: actions/checkout@v4
-        
-      # ADDED: Explicitly set up Python 3.10
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
