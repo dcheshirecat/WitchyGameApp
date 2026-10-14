@@ -62,7 +62,6 @@ jobs:
           echo "========================================================"
           tail -n 1500 build_log.txt
           echo "========================================================"
-          exit 1
 
       - name: 🚨 UPLOAD CRASH LOG 🚨
         if: env.build_failed == 'true'
@@ -70,6 +69,10 @@ jobs:
         with:
           name: full-crash-log
           path: build_log.txt
+
+      - name: Fail the Build
+        if: env.build_failed == 'true'
+        run: exit 1
 
       - name: Locate APK
         if: success() && env.build_failed != 'true'
