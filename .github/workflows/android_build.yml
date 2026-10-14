@@ -49,14 +49,12 @@ jobs:
             ${{ runner.os }}-buildozer-
           save-always: true
 
-      # UPDATED: Enforce the Python version via environment variables
       - name: Build APK (with Error Capture)
         env:
           PYTHON_VERSION: 3.11.8
           P4A_PYTHON_VERSION: 3.11.8
         run: |
-          set -o pipefail
-          yes | buildozer -v android debug 2>&1 | tee build_log.txt || echo "build_failed=true" >> $GITHUB_ENV
+          buildozer -v android debug 2>&1 | tee build_log.txt || echo "build_failed=true" >> $GITHUB_ENV
 
       - name: 🚨 PRINT EXACT ERROR 🚨
         if: env.build_failed == 'true'
