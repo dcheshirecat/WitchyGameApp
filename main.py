@@ -5,6 +5,8 @@ from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.image import Image
+from kivy.animation import Animation
+from kivy.clock import Clock
 import random
 
 # --- Game Data Structures ---
@@ -89,13 +91,19 @@ class GachaScreen(Screen):
         self.status_label = Label(text=f"Currency: {player.currency}\nReady to summon.", font_size=20, halign="center")
         layout.add_widget(self.status_label)
         
-        # Add a placeholder image that updates when you pull a card
-        self.card_image = Image(source='assets/card_back.png', size_hint=(1, 0.4), allow_stretch=True, keep_ratio=True)
+        # Display image that will animate
+        self.card_image = Image(
+            source='assets/summoning_circle.png', 
+            size_hint=(1, 0.4), 
+            allow_stretch=True, 
+            keep_ratio=True,
+            opacity=1.0
+        )
         layout.add_widget(self.card_image)
         
-        summon_btn = Button(text="Summon (Cost: 100)", size_hint=(1, 0.2))
-        summon_btn.bind(on_press=self.summon)
-        layout.add_widget(summon_btn)
+        self.summon_btn = Button(text="Summon (Cost: 100)", size_hint=(1, 0.2))
+        self.summon_btn.bind(on_press=self.start_summon_sequence)
+        layout.add_widget(self.summon_btn)
         
         back_btn = Button(text="Back to Menu", size_hint=(1, 0.2))
         back_btn.bind(on_press=lambda x: setattr(self.manager, 'current', 'menu'))
@@ -103,13 +111,30 @@ class GachaScreen(Screen):
         
         self.add_widget(layout)
 
-    def summon(self, instance):
+    def start_summon_sequence(self, instance):
         if player.currency < 100:
             self.status_label.text = f"Currency: {player.currency}\nNot enough currency!"
             return
             
+        # Deduct cost and disable button during animation
         player.currency -= 100
+        self.summon_btn.disabled = True
+        self.status_label.text = f"Currency: {player.currency}\nChanting incantation..."
         
+        # Step 1: Fade out old image & show summoning circle
+        self.card_image.source = 'assets/summoning_circle.png'
+        
+        # Step 2: Animate opacity pulse for ritual effect
+        anim_fade_out = Animation(opacity=0.2, duration=0.4)
+        anim_fade_in = Animation(opacity=1.0, duration=0.4)
+        ritual_anim = anim_fade_out + anim_fade_in + anim_fade_out + anim_fade_in
+        
+        # Step 3: Reveal pulled card when animation finishes
+        ritual_anim.bind(on_complete=self.reveal_summon_result)
+        ritual_anim.start(self.card_image)
+
+    def reveal_summon_result(self, animation, widget):
+        # Determine pull logic
         if random.random() < 0.3:
             pulled = random.choice(DATABASE["Witches"])
             if pulled not in player.witches:
@@ -119,17 +144,22 @@ class GachaScreen(Screen):
                 self.status_label.text = f"Currency: {player.currency}\nDuplicate Witch {pulled.name}. Gained 50 currency."
                 player.currency += 50
                 
-            # If Lilith is pulled, show her art. Otherwise, show the card back.
             if "Lilith" in pulled.name:
                 self.card_image.source = 'assets/lilith.png'
             else:
                 self.card_image.source = 'assets/card_back.png'
-                
         else:
             pulled = random.choice(DATABASE["Spells"])
             player.deck.append(pulled)
             self.status_label.text = f"Currency: {player.currency}\nYou pulled a Spell!\n{pulled.name}"
             self.card_image.source = 'assets/card_back.png'
+
+        # Step 4: Fade in the pulled card dramatically
+        reveal_anim = Animation(opacity=1.0, duration=0.5)
+        reveal_anim.start(self.card_image)
+        
+        # Re-enable the summon button
+        self.summon_btn.disabled = False
 
 
 class HangoutScreen(Screen):
@@ -219,7 +249,6 @@ class CombatScreen(Screen):
             self.update_ui()
 
     def enemy_turn(self, instance):
-        # Very simple enemy turn logic
         self.mana = 3
         self.hand = random.sample(player.deck, min(3, len(player.deck)))
         self.update_ui()
