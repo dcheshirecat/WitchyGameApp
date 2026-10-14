@@ -21,8 +21,8 @@ source.include_patterns = assets/*, assets/images/*
 # (str) Application versioning
 version = 0.1
 
-# (list) Application requirements (Use unpinned kivy so python-for-android uses its native recipe)
-requirements = python3==3.11.8,hostpython3==3.11.8,kivy,pyjnius,android
+# (list) Application requirements (Pinned to Python 3.10 for stable pre-compiled p4a recipes)
+requirements = python3==3.10.12,hostpython3==3.10.12,kivy,pyjnius,android
 
 # (str) Supported orientations (landscape, portrait or all)
 orientation = portrait
