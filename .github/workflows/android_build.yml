@@ -32,14 +32,15 @@ jobs:
 
       - name: Install Buildozer & Cython
         run: |
-          # Pin charset-normalizer to avoid the cp314 wheel incompatibility
           pip install "charset-normalizer<3.0"
           pip install "Cython<3.0" virtualenv
           pip install git+https://github.com/kivy/buildozer.git@master
 
-      - name: Force Debug Logging
+      - name: Force Debug Logging & Pin Python
         run: |
           echo "log_level = 2" >> buildozer.spec
+          # Force the Android target to use stable Python 3.11.8 instead of experimental 3.14
+          sed -i 's/requirements = python3,kivy/requirements = python3==3.11.8,kivy/g' buildozer.spec
 
       - name: Cache Buildozer Global Directory
         uses: actions/cache@v4
