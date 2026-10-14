@@ -19,7 +19,6 @@ jobs:
         with:
           python-version: '3.10'
 
-      # NEW: Explicitly configure the server to use Java 17
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -29,13 +28,18 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt update
-          sudo apt install -y build-essential git zip unzip python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev cython3
+          sudo apt install -y build-essential git zip unzip python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
 
-      - name: Install Buildozer
+      - name: Install Buildozer & Cython
         run: |
-          # Use modern Cython for Kivy 2.3+
-          pip install --upgrade Cython virtualenv
+          # Explicitly pin Cython to 0.29.33 to prevent Kivy recipe compilation crashes
+          pip install Cython==0.29.33 virtualenv
           pip install git+https://github.com/kivy/buildozer.git@master
+
+      - name: Force Debug Logging in Spec
+        run: |
+          # If the spec exists, ensure log_level is set to 2 to catch internal compiler errors
+          if [ -f "buildozer.spec" ]; then sed -i 's/.*log_level = .*/log_level = 2/' buildozer.spec; fi
 
       - name: Build APK (with Error Capture)
         run: |
@@ -48,8 +52,8 @@ jobs:
           echo "========================================================"
           echo "BUILD FAILED! HERE IS THE ACTUAL CAUSE OF THE CRASH:"
           echo "========================================================"
-          # Increased to 500 lines to ensure we catch the exact pythonforandroid error
-          tail -n 500 build_log.txt
+          # Expanded to 1000 lines to ensure we see the exact C-compiler or python-for-android exception
+          tail -n 1000 build_log.txt
           echo "========================================================"
           exit 1
 
