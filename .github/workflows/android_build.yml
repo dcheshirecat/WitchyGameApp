@@ -24,9 +24,16 @@ jobs:
           pip install --upgrade Cython==0.29.33 virtualenv
           pip install buildozer
 
+      - name: Init Buildozer Spec (If missing)
+        run: |
+          if [ ! -f "buildozer.spec" ]; then buildozer init; fi
+          # Force the use of stable Android API versions to prevent SDK crash
+          sed -i 's/#android.api = .*/android.api = 33/' buildozer.spec
+          sed -i 's/#android.minapi = .*/android.minapi = 24/' buildozer.spec
+          sed -i 's/#android.ndk_api = .*/android.ndk_api = 24/' buildozer.spec
+
       - name: Build APK (with Error Capture)
         run: |
-          # set -o pipefail ensures that if buildozer crashes, the whole step is marked as failed, even when using 'tee'
           set -o pipefail
           yes | buildozer -v android debug | tee build_log.txt
           
