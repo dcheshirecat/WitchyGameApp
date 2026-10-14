@@ -12,31 +12,31 @@ package.domain = org.witchygame
 # (str) Source code where the main.py lives
 source.dir = .
 
-# (list) Source files to include (added png, jpg, kv, atlas)
+# (list) Source files to include
 source.include_exts = py,png,jpg,kv,atlas
 
-# (list) List of inclusions using pattern matching to ensure your assets folder is packaged
+# (list) List of inclusions using pattern matching to ensure assets are packaged
 source.include_patterns = assets/*, assets/images/*
 
 # (str) Application versioning
 version = 0.1
 
-# (list) Application requirements (Pinned to stable 3.11.8 to prevent compiler crashes)
-requirements = python3==3.11.8,hostpython3==3.11.8,kivy
+# (list) Application requirements (Pinned to prevent Cython loop/linking issues)
+requirements = python3==3.11.8,hostpython3==3.11.8,kivy==2.3.0,pyjnius,android
 
 # (str) Supported orientations (landscape, portrait or all)
 orientation = portrait
 
-# (bool) Indicate if the application should be fullscreen or not (0 is false, 1 is true)
+# (bool) Indicate if the application should be fullscreen or not
 fullscreen = 1
 
-# (list) The architectures to build for (Only arm64-v8a to avoid compilation/linking crashes)
+# (list) The architectures to build for (arm64-v8a avoids cross-compilation linking errors)
 android.archs = arm64-v8a
 
-# (int) Target Android API, should be as high as possible.
+# (int) Target Android API
 android.api = 33
 
-# (int) Minimum API your APK / AAB will support.
+# (int) Minimum API your APK will support
 android.minapi = 24
 
 # (bool) Auto-accept Android SDK licenses to prevent build freezing
@@ -45,8 +45,8 @@ android.accept_sdk_license = True
 
 [buildozer]
 
-# (int) Log level (0 = error only, 1 = info, 2 = debug (with command output))
+# (int) Log level (0 = error only, 1 = info, 2 = debug)
 log_level = 2
 
-# (int) Display warning if buildozer is run as root (0 = False, 1 = True)
+# (int) Display warning if buildozer is run as root
 warn_on_root = 1
