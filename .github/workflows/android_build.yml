@@ -39,7 +39,6 @@ jobs:
         run: |
           echo "log_level = 2" >> buildozer.spec
 
-      # UPDATED CACHE STEP: Forces the server to save the downloaded SDKs even if the build fails later
       - name: Cache Buildozer Global Directory
         uses: actions/cache@v4
         with:
@@ -52,7 +51,7 @@ jobs:
       - name: Build APK (with Error Capture)
         run: |
           set -o pipefail
-          buildozer -v android debug 2>&1 | tee build_log.txt || echo "build_failed=true" >> $GITHUB_ENV
+          yes | buildozer -v android debug 2>&1 | tee build_log.txt || echo "build_failed=true" >> $GITHUB_ENV
 
       - name: 🚨 PRINT EXACT ERROR 🚨
         if: env.build_failed == 'true'
