@@ -28,13 +28,18 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt update
-          # Added python3-dev to provide required C-headers
-          sudo apt install -y build-essential git zip unzip python3-pip python3-dev autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
+          # Added 'automake' to prevent silent C-compiler failures
+          sudo apt install -y build-essential git zip unzip python3-pip python3-dev autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev automake
 
       - name: Install Buildozer & Cython
         run: |
           pip install "Cython<3.0" virtualenv
           pip install git+https://github.com/kivy/buildozer.git@master
+
+      - name: Force Debug Logging
+        run: |
+          # Guarantee that the spec file is in debug mode
+          echo "log_level = 2" >> buildozer.spec
 
       - name: Cache Buildozer Global Directory
         uses: actions/cache@v4
@@ -47,8 +52,18 @@ jobs:
       - name: Build APK (with Error Capture)
         run: |
           set -o pipefail
-          # Removed 'yes |' to prevent silent crashes in the toolchain
-          buildozer -v android debug | tee build_log.txt || echo "build_failed=true" >> $GITHUB_ENV
+          # The '2>&1' forces Linux to capture hidden crash data (stderr) into our log
+          buildozer -v android debug 2>&1 | tee build_log.txt || echo "build_failed=true" >> $GITHUB_ENV
+
+      - name: 🚨 PRINT EXACT ERROR 🚨
+        if: env.build_failed == 'true'
+        run: |
+          echo "========================================================"
+          echo "BUILD FAILED! HERE IS THE ACTUAL CAUSE OF THE CRASH:"
+          echo "========================================================"
+          tail -n 1500 build_log.txt
+          echo "========================================================"
+          exit 1
 
       - name: 🚨 UPLOAD CRASH LOG 🚨
         if: env.build_failed == 'true'
@@ -56,10 +71,6 @@ jobs:
         with:
           name: full-crash-log
           path: build_log.txt
-
-      - name: Fail the Build
-        if: env.build_failed == 'true'
-        run: exit 1
 
       - name: Locate APK
         if: success() && env.build_failed != 'true'
