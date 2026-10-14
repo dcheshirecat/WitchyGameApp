@@ -45,14 +45,20 @@ jobs:
             ${{ runner.os }}-buildozer-
           save-always: true
 
-      - name: Build APK (with Error Capture)
+      - name: Build APK (with Error & Timeout Capture)
         timeout-minutes: 60
         env:
           PYTHON_VERSION: 3.11.8
           P4A_PYTHON_VERSION: 3.11.8
         run: |
           set -o pipefail
+          # Keep-alive loop to prevent GitHub 10-minute silent timeout
+          (while true; do sleep 60; echo "[keep-alive] Compiling C-extensions..."; done) &
+          PING_LOOP_PID=$!
+          
           buildozer -v android debug 2>&1 | tee build_log.txt || echo "build_failed=true" >> $GITHUB_ENV
+          
+          kill $PING_LOOP_PID || true
 
       - name: 🚨 PRINT EXACT ERROR 🚨
         if: env.build_failed == 'true'
