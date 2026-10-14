@@ -30,6 +30,12 @@ orientation = portrait
 # (bool) Indicate if the application should be fullscreen or not (0 is false, 1 is true)
 fullscreen = 1
 
+# (int) Target Android API, should be as high as possible.
+android.api = 33
+
+# (int) Minimum API your APK / AAB will support.
+android.minapi = 24
+
 # (bool) Auto-accept Android SDK licenses to prevent build freezing
 android.accept_sdk_license = True
 
