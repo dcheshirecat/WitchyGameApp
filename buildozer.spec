@@ -5,7 +5,7 @@ package.domain = com.yourname
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
 version = 0.1
-requirements = python3==3.11.8,kivy
+requirements = python3==3.11.8,hostpython3==3.11.8,kivy
 orientation = portrait
 fullscreen = 1
 android.api = 33
