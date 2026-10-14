@@ -1,0 +1,41 @@
+# This styles EVERY button in your entire game
+<Button>:
+    # Removes the default ugly grey Kivy button graphic
+    background_normal: ''
+    # Applies a dark mystical purple color (RGBA format)
+    background_color: 0.15, 0.05, 0.2, 1
+    # Sets the text color to a faded gold
+    color: 0.8, 0.7, 0.4, 1
+    font_size: '18sp'
+    # Optional: Slightly round the button corners
+    canvas.before:
+        Color:
+            rgba: 0.8, 0.7, 0.4, 1
+        Line:
+            width: 1.2
+            rectangle: self.x, self.y, self.width, self.height
+
+# This targets the MenuScreen class in your main.py
+<MenuScreen>:
+    canvas.before:
+        # Draw your background image before drawing the buttons
+        Rectangle:
+            pos: self.pos
+            size: self.size
+            source: 'assets/background.png'
+
+# This targets your GachaScreen class
+<GachaScreen>:
+    canvas.before:
+        Rectangle:
+            pos: self.pos
+            size: self.size
+            source: 'assets/background.png'
+
+# This targets your CombatScreen class
+<CombatScreen>:
+    canvas.before:
+        Rectangle:
+            pos: self.pos
+            size: self.size
+            source: 'assets/background.png'
