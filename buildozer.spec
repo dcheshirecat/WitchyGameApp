@@ -21,7 +21,7 @@ source.include_patterns = assets/*, assets/images/*
 # (str) Application versioning
 version = 0.1
 
-# (list) Application requirements (Pinned to Python 3.10 for stable pre-compiled p4a recipes)
+# (list) Application requirements
 requirements = python3==3.10.12,hostpython3==3.10.12,kivy,pyjnius,android
 
 # (str) Supported orientations (landscape, portrait or all)
@@ -30,7 +30,7 @@ orientation = portrait
 # (bool) Indicate if the application should be fullscreen or not
 fullscreen = 1
 
-# (list) The architectures to build for (arm64-v8a avoids cross-compilation linking errors)
+# (list) The architectures to build for
 android.archs = arm64-v8a
 
 # (int) Target Android API
@@ -38,6 +38,9 @@ android.api = 33
 
 # (int) Minimum API your APK will support
 android.minapi = 24
+
+# (str) Pin NDK version to match toolchain paths
+android.ndk = 25b
 
 # (bool) Auto-accept Android SDK licenses to prevent build freezing
 android.accept_sdk_license = True
