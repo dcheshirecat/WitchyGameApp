@@ -4,6 +4,7 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.scrollview import ScrollView
+from kivy.uix.image import Image
 import random
 
 # --- Game Data Structures ---
@@ -88,6 +89,10 @@ class GachaScreen(Screen):
         self.status_label = Label(text=f"Currency: {player.currency}\nReady to summon.", font_size=20, halign="center")
         layout.add_widget(self.status_label)
         
+        # Add a placeholder image that updates when you pull a card
+        self.card_image = Image(source='assets/card_back.png', size_hint=(1, 0.4), allow_stretch=True, keep_ratio=True)
+        layout.add_widget(self.card_image)
+        
         summon_btn = Button(text="Summon (Cost: 100)", size_hint=(1, 0.2))
         summon_btn.bind(on_press=self.summon)
         layout.add_widget(summon_btn)
@@ -105,7 +110,6 @@ class GachaScreen(Screen):
             
         player.currency -= 100
         
-        # 30% chance for a Witch, 70% chance for a Spell
         if random.random() < 0.3:
             pulled = random.choice(DATABASE["Witches"])
             if pulled not in player.witches:
@@ -114,10 +118,18 @@ class GachaScreen(Screen):
             else:
                 self.status_label.text = f"Currency: {player.currency}\nDuplicate Witch {pulled.name}. Gained 50 currency."
                 player.currency += 50
+                
+            # If Lilith is pulled, show her art. Otherwise, show the card back.
+            if "Lilith" in pulled.name:
+                self.card_image.source = 'assets/lilith.png'
+            else:
+                self.card_image.source = 'assets/card_back.png'
+                
         else:
             pulled = random.choice(DATABASE["Spells"])
             player.deck.append(pulled)
             self.status_label.text = f"Currency: {player.currency}\nYou pulled a Spell!\n{pulled.name}"
+            self.card_image.source = 'assets/card_back.png'
 
 
 class HangoutScreen(Screen):
