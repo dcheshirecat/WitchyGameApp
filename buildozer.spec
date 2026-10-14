@@ -30,6 +30,9 @@ orientation = portrait
 # (bool) Indicate if the application should be fullscreen or not (0 is false, 1 is true)
 fullscreen = 1
 
+# (list) The architectures to build for (Only arm64-v8a to avoid compilation/linking crashes)
+android.archs = arm64-v8a
+
 # (int) Target Android API, should be as high as possible.
 android.api = 33
 
