@@ -46,6 +46,7 @@ jobs:
           save-always: true
 
       - name: Build APK (with Error Capture)
+        timeout-minutes: 60
         env:
           PYTHON_VERSION: 3.11.8
           P4A_PYTHON_VERSION: 3.11.8
