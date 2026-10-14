@@ -30,10 +30,10 @@ jobs:
           sudo apt update
           sudo apt install -y build-essential git zip unzip python3-pip python3-dev autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev automake
 
-      - name: Install Buildozer & Cython
+      - name: Install Buildozer, Cython & Pinned Build Tools
         run: |
           pip install "charset-normalizer<3.0"
-          pip install "Cython<3.0" virtualenv
+          pip install "Cython<3.0" "setuptools<69.0.0" virtualenv
           pip install buildozer==1.5.0
 
       - name: Cache Buildozer Global Directory
@@ -43,22 +43,15 @@ jobs:
           key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
           restore-keys: |
             ${{ runner.os }}-buildozer-
-          save-always: true
 
-      - name: Build APK (with Error & Timeout Capture)
-        timeout-minutes: 60
+      - name: Build APK (with Error Capture)
+        timeout-minutes: 45
         env:
           PYTHON_VERSION: 3.11.8
           P4A_PYTHON_VERSION: 3.11.8
         run: |
           set -o pipefail
-          # Keep-alive loop to prevent GitHub 10-minute silent timeout
-          (while true; do sleep 60; echo "[keep-alive] Compiling C-extensions..."; done) &
-          PING_LOOP_PID=$!
-          
           buildozer -v android debug 2>&1 | tee build_log.txt || echo "build_failed=true" >> $GITHUB_ENV
-          
-          kill $PING_LOOP_PID || true
 
       - name: 🚨 PRINT EXACT ERROR 🚨
         if: env.build_failed == 'true'
