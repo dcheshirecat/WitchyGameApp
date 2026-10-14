@@ -28,7 +28,6 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt update
-          # Added 'automake' to prevent silent C-compiler failures
           sudo apt install -y build-essential git zip unzip python3-pip python3-dev autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev automake
 
       - name: Install Buildozer & Cython
@@ -38,9 +37,9 @@ jobs:
 
       - name: Force Debug Logging
         run: |
-          # Guarantee that the spec file is in debug mode
           echo "log_level = 2" >> buildozer.spec
 
+      # UPDATED CACHE STEP: Forces the server to save the downloaded SDKs even if the build fails later
       - name: Cache Buildozer Global Directory
         uses: actions/cache@v4
         with:
@@ -48,11 +47,11 @@ jobs:
           key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
           restore-keys: |
             ${{ runner.os }}-buildozer-
+          save-always: true
 
       - name: Build APK (with Error Capture)
         run: |
           set -o pipefail
-          # The '2>&1' forces Linux to capture hidden crash data (stderr) into our log
           buildozer -v android debug 2>&1 | tee build_log.txt || echo "build_failed=true" >> $GITHUB_ENV
 
       - name: 🚨 PRINT EXACT ERROR 🚨
