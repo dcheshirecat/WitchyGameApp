@@ -32,13 +32,20 @@ jobs:
 
       - name: Install Buildozer & Cython
         run: |
-          # Explicitly pin Cython to 0.29.33 to prevent Kivy recipe compilation crashes
           pip install Cython==0.29.33 virtualenv
           pip install git+https://github.com/kivy/buildozer.git@master
 
+      # This caches the heavily compiled Android SDK/NDK so future builds fly by
+      - name: Cache Buildozer Global Directory
+        uses: actions/cache@v4
+        with:
+          path: .buildozer
+          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            ${{ runner.os }}-buildozer-
+
       - name: Force Debug Logging in Spec
         run: |
-          # If the spec exists, ensure log_level is set to 2 to catch internal compiler errors
           if [ -f "buildozer.spec" ]; then sed -i 's/.*log_level = .*/log_level = 2/' buildozer.spec; fi
 
       - name: Build APK (with Error Capture)
@@ -46,16 +53,16 @@ jobs:
           set -o pipefail
           yes | buildozer -v android debug | tee build_log.txt || echo "build_failed=true" >> $GITHUB_ENV
 
-      - name: 🚨 PRINT EXACT ERROR (If Build Fails) 🚨
+      - name: 🚨 UPLOAD CRASH LOG 🚨
         if: env.build_failed == 'true'
-        run: |
-          echo "========================================================"
-          echo "BUILD FAILED! HERE IS THE ACTUAL CAUSE OF THE CRASH:"
-          echo "========================================================"
-          # Expanded to 1000 lines to ensure we see the exact C-compiler or python-for-android exception
-          tail -n 1000 build_log.txt
-          echo "========================================================"
-          exit 1
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-crash-log
+          path: build_log.txt
+
+      - name: Fail the Build
+        if: env.build_failed == 'true'
+        run: exit 1
 
       - name: Locate APK
         if: success() && env.build_failed != 'true'
