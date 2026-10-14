@@ -2,12 +2,17 @@ name: Build Android APK
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
   build-android:
+    name: Compile with Buildozer
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -17,13 +22,11 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt update
-          # CHANGED: Added cython3 to the apt install list
           sudo apt install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev cython3
 
       - name: Install Buildozer
         run: |
           pip install --upgrade Cython==0.29.33 virtualenv
-          # CHANGED: Install Buildozer directly from the master branch
           pip install git+https://github.com/kivy/buildozer.git@master
 
       - name: Init Buildozer Spec (If missing)
@@ -37,7 +40,7 @@ jobs:
         run: |
           set -o pipefail
           yes | buildozer -v android debug | tee build_log.txt
-          
+
       - name: 🚨 PRINT EXACT ERROR (If Build Fails) 🚨
         if: failure()
         run: |
