@@ -28,14 +28,14 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt update
-          sudo apt install -y build-essential git zip unzip python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
+          # Added python3-dev to provide required C-headers
+          sudo apt install -y build-essential git zip unzip python3-pip python3-dev autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
 
       - name: Install Buildozer & Cython
         run: |
-          pip install Cython==0.29.33 virtualenv
+          pip install "Cython<3.0" virtualenv
           pip install git+https://github.com/kivy/buildozer.git@master
 
-      # This caches the heavily compiled Android SDK/NDK so future builds fly by
       - name: Cache Buildozer Global Directory
         uses: actions/cache@v4
         with:
@@ -44,14 +44,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildozer-
 
-      - name: Force Debug Logging in Spec
-        run: |
-          if [ -f "buildozer.spec" ]; then sed -i 's/.*log_level = .*/log_level = 2/' buildozer.spec; fi
-
       - name: Build APK (with Error Capture)
         run: |
           set -o pipefail
-          yes | buildozer -v android debug | tee build_log.txt || echo "build_failed=true" >> $GITHUB_ENV
+          # Removed 'yes |' to prevent silent crashes in the toolchain
+          buildozer -v android debug | tee build_log.txt || echo "build_failed=true" >> $GITHUB_ENV
 
       - name: 🚨 UPLOAD CRASH LOG 🚨
         if: env.build_failed == 'true'
