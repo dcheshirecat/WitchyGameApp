@@ -1,10 +1,3 @@
-name: Build Android APK
-
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
-
 jobs:
   build-android:
     name: Compile with Buildozer
@@ -13,21 +6,28 @@ jobs:
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
+        
+      # ADDED: Explicitly set up Python 3.10
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
       - name: Install System Dependencies
         run: |
           sudo apt update
-          sudo apt install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
+          # CHANGED: Added cython3 to the apt install list
+          sudo apt install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev cython3
 
       - name: Install Buildozer
         run: |
           pip install --upgrade Cython==0.29.33 virtualenv
-          pip install buildozer
+          # CHANGED: Install Buildozer directly from the master branch
+          pip install git+https://github.com/kivy/buildozer.git@master
 
       - name: Init Buildozer Spec (If missing)
         run: |
           if [ ! -f "buildozer.spec" ]; then buildozer init; fi
-          # Force the use of stable Android API versions to prevent SDK crash
           sed -i 's/#android.api = .*/android.api = 33/' buildozer.spec
           sed -i 's/#android.minapi = .*/android.minapi = 24/' buildozer.spec
           sed -i 's/#android.ndk_api = .*/android.ndk_api = 24/' buildozer.spec
