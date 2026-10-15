@@ -21,8 +21,11 @@ source.include_patterns = assets/*, assets/images/*, assets/*.html
 # (str) Application versioning
 version = 0.1
 
-# (list) Application requirements (Pinned to Python 3.10.12 and NDK 25b to prevent compiler stalls)
+# (list) Application requirements (Pinned to Python 3.10.12 to prevent compiler stalls)
 requirements = python3==3.10.12,hostpython3==3.10.12,kivy,pyjnius,android
+
+# (str) Custom app icon
+icon.filename = icon.png
 
 # (str) Supported orientations (landscape, portrait or all)
 orientation = portrait
@@ -39,7 +42,7 @@ android.api = 33
 # (int) Minimum API your APK will support
 android.minapi = 24
 
-# (str) Pin NDK version to match toolchain paths
+# (str) Pin NDK version to match toolchain paths and prevent caching crashes
 android.ndk = 25b
 
 # (bool) Auto-accept Android SDK licenses to prevent build freezing
