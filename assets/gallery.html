@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { margin: 0; padding: 1rem; background: transparent; display: flex; overflow-x: auto; gap: 20px; align-items: center; height: 100vh; font-family: sans-serif; }
+    .card-container { width: 220px; height: 320px; perspective: 1000px; flex-shrink: 0; }
+    .card { width: 100%; height: 100%; position: relative; transition: transform 0.6s; transform-style: preserve-3d; cursor: pointer; }
+    .card.is-flipped { transform: rotateY(180deg); }
+    .card-face { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 12px; border: 3px solid #ffd700; overflow: hidden; background: #15131d; color: white; display: flex; flex-direction: column; align-items: center; }
+    .card-front img { width: 100%; height: 100%; object-fit: cover; opacity: 0.8; }
+    .card-front .title { position: absolute; bottom: 0; background: rgba(0,0,0,0.8); width: 100%; padding: 10px 0; text-align: center; color: #ffd700; font-weight: bold; border-top: 2px solid #ffd700; }
+    .card-back { transform: rotateY(180deg); padding: 15px; text-align: center; justify-content: center; box-sizing: border-box; }
+    .btn { margin-top: 15px; padding: 10px; background: #00e5ff; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%; }
+    .stats { font-size: 0.9rem; color: #aaa; margin: 10px 0; }
+  </style>
+</head>
+<body>
+  <div id="gallery"></div>
+  <script>
+    function loadGallery(rosterJson) {
+      const roster = JSON.parse(rosterJson);
+      const gallery = document.getElementById('gallery');
+      gallery.innerHTML = '';
+      roster.forEach(char => {
+        const card = document.createElement('div');
+        card.className = 'card-container';
+        card.innerHTML = `
+          <div class="card" onclick="this.classList.toggle('is-flipped')">
+            <div class="card-face card-front">
+              <img src="${char.img}" alt="${char.name}" onerror="this.src='card_back.png'">
+              <div class="title">${char.name}</div>
+            </div>
+            <div class="card-face card-back">
+              <h3 style="color:#ffd700; margin:0;">${char.name}</h3>
+              <p style="font-size:0.8rem; color:#00e5ff;">${char.passive}</p>
+              <div class="stats">
+                <b>Ultimate:</b> ${char.ult_name}<br>
+                Dmg: ${char.dmg} | Blk: ${char.blk} | Cost: ${char.cost}
+              </div>
+              <!-- PyJNIus handles window.location intercepts for Python callbacks -->
+              <button class="btn" onclick="event.stopPropagation(); window.location.href='kivy://select_team?name=' + encodeURIComponent('${char.name}')">Add to Team</button>
+            </div>
+          </div>
+        `;
+        gallery.appendChild(card);
+      });
+    }
+  </script>
+</body>
+</html>
