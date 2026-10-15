@@ -105,41 +105,62 @@ class PlayerState:
             Spell("Holy Barrier", 0, 2, "Divine", block=15)
         ]
         self.current_node = 0
-        self.nodes = ["Crossroads", "Shrine", "Alchemist Shop", "Crossroads", "The Fog (Boss)"]
+        self.nodes = [
+            {"type": "Crossroads", "label": "⚔️ Overgrown Trail"},
+            {"type": "Shrine", "label": "⛩️ Sacred Spring"},
+            {"type": "Alchemist Shop", "label": "🧪 Apothecary Hut"},
+            {"type": "Crossroads", "label": "⚔️ Haunted Ruins"},
+            {"type": "Boss", "label": "💀 The Fog (Mothman)"}
+        ]
 
 player = PlayerState()
+
+# Helper function for auto-wrapping labels to eliminate text overlaps
+def make_wrapped_label(text, font_size=16, bold=False, color=(1, 1, 1, 1), size_hint=(1, None), height=60):
+    lbl = Label(
+        text=text,
+        font_size=font_size,
+        bold=bold,
+        color=color,
+        halign="center",
+        valign="middle",
+        size_hint=size_hint
+    )
+    if size_hint[1] is None:
+        lbl.height = height
+    lbl.bind(size=lambda s, w: setattr(s, 'text_size', w))
+    return lbl
 
 # --- Screens ---
 
 class MenuScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        layout = BoxLayout(orientation='vertical', padding=30, spacing=10)
+        layout = BoxLayout(orientation='vertical', padding=25, spacing=12)
         
-        # Background frame setup
-        layout.add_widget(Label(text="URBAN LEGEND DECKBUILDER", font_size=28, bold=True))
+        layout.add_widget(make_wrapped_label("URBAN LEGEND DECKBUILDER", font_size=26, bold=True, size_hint=(1, 0.18)))
         
-        btn_map = Button(text="Enter The Hunt (Rogue-lite Map)", size_hint=(1, 0.12))
+        btn_map = Button(text="Enter The Hunt (Interactive Map)", font_size=18, size_hint=(1, 0.12))
         btn_map.bind(on_press=self.go_to_map)
         layout.add_widget(btn_map)
         
-        btn_team = Button(text="Coven & Team Building", size_hint=(1, 0.12))
+        btn_team = Button(text="Coven & Team Building", font_size=18, size_hint=(1, 0.12))
         btn_team.bind(on_press=self.go_to_team)
         layout.add_widget(btn_team)
 
-        btn_upgrade = Button(text="Arcane Dust Upgrade Shrine", size_hint=(1, 0.12))
+        btn_upgrade = Button(text="Arcane Dust Upgrade Shrine", font_size=18, size_hint=(1, 0.12))
         btn_upgrade.bind(on_press=self.go_to_upgrade)
         layout.add_widget(btn_upgrade)
 
-        btn_grimoire = Button(text="The Esoteric Grimoire", size_hint=(1, 0.12))
+        btn_grimoire = Button(text="The Esoteric Grimoire", font_size=18, size_hint=(1, 0.12))
         btn_grimoire.bind(on_press=self.go_to_grimoire)
         layout.add_widget(btn_grimoire)
 
-        btn_gacha = Button(text="Summoning Circle (Gacha)", size_hint=(1, 0.12))
+        btn_gacha = Button(text="Summoning Circle (Gacha)", font_size=18, size_hint=(1, 0.12))
         btn_gacha.bind(on_press=lambda x: setattr(self.manager, 'current', 'gacha'))
         layout.add_widget(btn_gacha)
         
-        btn_hangout = Button(text="Hangout (Friendship)", size_hint=(1, 0.12))
+        btn_hangout = Button(text="Hangout (Friendship)", font_size=18, size_hint=(1, 0.12))
         btn_hangout.bind(on_press=self.go_to_hangout)
         layout.add_widget(btn_hangout)
         
@@ -169,52 +190,79 @@ class MenuScreen(Screen):
 class MapScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
+        self.layout = BoxLayout(orientation='vertical', padding=15, spacing=10)
         self.add_widget(self.layout)
 
     def refresh_map(self):
         self.layout.clear_widgets()
         
-        header = BoxLayout(orientation='horizontal', size_hint=(1, 0.12), spacing=10)
-        header.add_widget(Image(source='assets/icon_hp.png', size_hint=(0.15, 1)))
-        
-        status_text = f"HP: {player.hp}/{player.max_hp} | Gold: {player.currency} | Dust: {player.dust}\n"
+        # Stat Bar
         leader_name = player.active_leader.name if player.active_leader else "None"
-        status_text += f"Leader: {leader_name}"
-        header.add_widget(Label(text=status_text, font_size=16))
-        
-        self.layout.add_widget(header)
-        self.layout.add_widget(Label(text="--- THE HUNT PATH ---", font_size=22, size_hint=(1, 0.1)))
+        stats_text = f"HP: {player.hp}/{player.max_hp}  |  Gold: {player.currency}  |  Dust: {player.dust}\nCoven Leader: {leader_name}"
+        self.layout.add_widget(make_wrapped_label(stats_text, font_size=15, bold=True, size_hint=(1, 0.12)))
 
-        nodes_layout = BoxLayout(orientation='vertical', spacing=10, size_hint=(1, 0.58))
-        for idx, node_name in enumerate(player.nodes):
-            if idx < player.current_node:
-                btn_text = f"✓ Step {idx+1}: {node_name} (Completed)"
-                btn = Button(text=btn_text, disabled=True, size_hint=(1, 0.2))
-            elif idx == player.current_node:
-                btn_text = f"▶ Step {idx+1}: {node_name} (ENTER)"
-                btn = Button(text=btn_text, size_hint=(1, 0.2))
-                btn.bind(on_press=lambda inst, n=node_name: self.enter_node(n))
-            else:
-                btn_text = f"Locked: Step {idx+1}: {node_name}"
-                btn = Button(text=btn_text, disabled=True, size_hint=(1, 0.2))
+        self.layout.add_widget(make_wrapped_label("--- THE HUNT PATH ---", font_size=20, bold=True, size_hint=(1, 0.08)))
+
+        # Interactive Map Node Path
+        scroll = ScrollView(size_hint=(1, 0.68))
+        map_path_layout = BoxLayout(orientation='vertical', size_hint_y=None, spacing=15, padding=10)
+        map_path_layout.bind(minimum_height=map_path_layout.setter('height'))
+
+        # Render nodes in reverse order so the Boss sits at the top like a spire
+        for idx in range(len(player.nodes) - 1, -1, -1):
+            node_data = player.nodes[idx]
             
-            nodes_layout.add_widget(btn)
+            node_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=75, spacing=10)
+            
+            if idx < player.current_node:
+                status_symbol = "✓"
+                btn_color = (0.3, 0.7, 0.3, 1)
+                is_disabled = True
+                label_text = f"{status_symbol} Step {idx+1}: {node_data['label']} (Cleared)"
+            elif idx == player.current_node:
+                status_symbol = "▶"
+                btn_color = (0.9, 0.6, 0.2, 1)
+                is_disabled = False
+                label_text = f"{status_symbol} Step {idx+1}: {node_data['label']} (ENTER)"
+            else:
+                status_symbol = "🔒"
+                btn_color = (0.4, 0.4, 0.4, 1)
+                is_disabled = True
+                label_text = f"{status_symbol} Step {idx+1}: {node_data['label']}"
 
-        self.layout.add_widget(nodes_layout)
+            btn = Button(
+                text=label_text,
+                font_size=16,
+                bold=True,
+                background_color=btn_color,
+                disabled=is_disabled,
+                size_hint=(1, 1)
+            )
+            btn.bind(on_press=lambda inst, n=node_data['type']: self.enter_node(n))
+            node_box.add_widget(btn)
+            
+            map_path_layout.add_widget(node_box)
+            
+            # Draw connector path lines between nodes
+            if idx > 0:
+                path_line = make_wrapped_label("│\n│", font_size=18, color=(0.6, 0.6, 0.6, 1), height=30)
+                map_path_layout.add_widget(path_line)
 
-        back_btn = Button(text="Return to Menu", size_hint=(1, 0.12))
+        scroll.add_widget(map_path_layout)
+        self.layout.add_widget(scroll)
+
+        back_btn = Button(text="Return to Menu", font_size=16, size_hint=(1, 0.12))
         back_btn.bind(on_press=lambda x: setattr(self.manager, 'current', 'menu'))
         self.layout.add_widget(back_btn)
 
-    def enter_node(self, node_name):
-        if "Crossroads" in node_name or "Boss" in node_name:
-            self.manager.get_screen('combat').start_combat(is_boss=("Boss" in node_name))
+    def enter_node(self, node_type):
+        if node_type in ["Crossroads", "Boss"]:
+            self.manager.get_screen('combat').start_combat(is_boss=(node_type == "Boss"))
             self.manager.current = 'combat'
-        elif "Alchemist" in node_name:
+        elif node_type == "Alchemist Shop":
             self.manager.get_screen('shop').refresh_shop()
             self.manager.current = 'shop'
-        elif "Shrine" in node_name:
+        elif node_type == "Shrine":
             player.hp = min(player.max_hp, player.hp + 25)
             player.current_node += 1
             self.refresh_map()
@@ -249,52 +297,42 @@ class CombatScreen(Screen):
         if self.enemy.hp <= 0:
             player.currency += 120
             player.current_node += 1
-            self.layout.add_widget(Label(text="VICTORY!\nGained 120 Gold.", font_size=30))
-            back_btn = Button(text="Continue Path", size_hint=(1, 0.2))
+            self.layout.add_widget(make_wrapped_label("VICTORY!\nGained 120 Gold.", font_size=26, bold=True, size_hint=(1, 0.6)))
+            back_btn = Button(text="Continue Path", font_size=18, size_hint=(1, 0.2))
             back_btn.bind(on_press=self.finish_combat)
             self.layout.add_widget(back_btn)
             return
 
         if player.hp <= 0:
-            self.layout.add_widget(Label(text="YOU WERE DEFEATED...", font_size=30))
-            back_btn = Button(text="Return to Menu", size_hint=(1, 0.2))
+            self.layout.add_widget(make_wrapped_label("YOU WERE DEFEATED...", font_size=26, bold=True, size_hint=(1, 0.6)))
+            back_btn = Button(text="Return to Menu", font_size=18, size_hint=(1, 0.2))
             back_btn.bind(on_press=self.reset_run)
             self.layout.add_widget(back_btn)
             return
 
-        # Status & Resource Header with UI Icons
-        header = BoxLayout(orientation='horizontal', size_hint=(1, 0.15), spacing=5)
-        
-        hp_box = BoxLayout(orientation='horizontal')
-        hp_box.add_widget(Image(source='assets/icon_hp.png', size_hint=(0.4, 1)))
-        hp_box.add_widget(Label(text=f"{player.hp}/{player.max_hp}\nShield: {player.block}", font_size=14))
-        header.add_widget(hp_box)
+        # Stat Bar
+        status_text = f"Your HP: {player.hp}/{player.max_hp} (Shield: {player.block})  |  Mana: {self.mana}\n"
+        status_text += f"{self.enemy.name} HP: {self.enemy.hp}/{self.enemy.max_hp} (Weakness: {self.enemy.weakness})\n"
+        status_text += f"Enemy Statuses: Burn ({self.enemy.burn}) | Poison ({self.enemy.poison})"
+        self.layout.add_widget(make_wrapped_label(status_text, font_size=15, bold=True, size_hint=(1, 0.22)))
 
-        mana_box = BoxLayout(orientation='horizontal')
-        mana_box.add_widget(Image(source='assets/icon_mana.png', size_hint=(0.4, 1)))
-        mana_box.add_widget(Label(text=f"Mana: {self.mana}", font_size=14))
-        header.add_widget(mana_box)
-
-        self.layout.add_widget(header)
-
-        # Enemy Display & Status Effects (Burn/Poison)
-        enemy_info = f"{self.enemy.name} HP: {self.enemy.hp}/{self.enemy.max_hp} (Weakness: {self.enemy.weakness})\n"
-        enemy_info += f"Statuses: Burn ({self.enemy.burn}) | Poison ({self.enemy.poison})"
-        self.layout.add_widget(Label(text=enemy_info, font_size=16, size_hint=(1, 0.15)))
-
-        # Card Hand with Custom Templates
-        cards_layout = BoxLayout(orientation='horizontal', spacing=8, size_hint=(1, 0.5))
+        # Card Hand Layout
+        cards_layout = BoxLayout(orientation='horizontal', spacing=8, size_hint=(1, 0.6))
         for spell in self.hand:
-            card_box = BoxLayout(orientation='vertical', padding=5)
-            btn_text = f"{spell.name} (Lv {spell.level})\n[{spell.spell_type}]\nDmg:{spell.damage} Blk:{spell.block}\nCost: {spell.cost}"
-            btn = Button(text=btn_text, font_size=12)
+            btn_text = f"{spell.name}\n(Lv {spell.level})\n[{spell.spell_type}]\nDmg: {spell.damage}\nBlk: {spell.block}\nCost: {spell.cost}"
+            btn = Button(
+                text=btn_text,
+                font_size=13,
+                halign="center",
+                valign="middle"
+            )
+            btn.bind(size=lambda s, w: setattr(s, 'text_size', w))
             btn.bind(on_press=lambda instance, s=spell: self.cast_spell(s))
-            card_box.add_widget(btn)
-            cards_layout.add_widget(card_box)
+            cards_layout.add_widget(btn)
             
         self.layout.add_widget(cards_layout)
         
-        end_turn_btn = Button(text="End Turn", size_hint=(1, 0.15))
+        end_turn_btn = Button(text="End Turn", font_size=18, size_hint=(1, 0.18))
         end_turn_btn.bind(on_press=self.enemy_turn)
         self.layout.add_widget(end_turn_btn)
 
@@ -302,16 +340,13 @@ class CombatScreen(Screen):
         if self.mana >= spell.cost:
             self.mana -= spell.cost
             
-            # Apply Shield Block
             player.block += spell.block
             
-            # Calculate Elemental Weakness Damage
             mult = 1.5 if spell.spell_type == self.enemy.weakness else 1.0
             total_dmg = int(spell.damage * mult)
             
             self.enemy.hp -= total_dmg
             
-            # Apply Status Effect
             if spell.status_effect:
                 effect_type, val = spell.status_effect
                 if effect_type == "Burn":
@@ -323,7 +358,6 @@ class CombatScreen(Screen):
             self.update_ui()
 
     def enemy_turn(self, instance):
-        # 1. Process Enemy Status Effects (Burn / Poison)
         if self.enemy.burn > 0:
             self.enemy.hp -= self.enemy.burn
             self.enemy.burn = max(0, self.enemy.burn - 1)
@@ -331,13 +365,11 @@ class CombatScreen(Screen):
         if self.enemy.poison > 0:
             self.enemy.hp -= self.enemy.poison
 
-        # 2. Enemy Attacks Player (Mitigated by Shield Block)
         raw_damage = 12
         damage_to_hp = max(0, raw_damage - player.block)
         player.block = max(0, player.block - raw_damage)
         player.hp -= damage_to_hp
 
-        # Reset turn
         self.mana = 4 if (player.active_leader and "Lilith" in player.active_leader.name) else 3
         self.hand = random.sample(player.deck, min(3, len(player.deck)))
         self.update_ui()
@@ -361,28 +393,35 @@ class UpgradeScreen(Screen):
     def refresh_ui(self):
         self.layout.clear_widgets()
         
-        header = BoxLayout(orientation='horizontal', size_hint=(1, 0.12), spacing=10)
-        header.add_widget(Image(source='assets/icon_dust.png', size_hint=(0.2, 1)))
-        header.add_widget(Label(text=f"ARCANE DUST SHRINE\nDust: {player.dust} | Gold: {player.currency}", font_size=18))
-        self.layout.add_widget(header)
+        status = f"ARCANE DUST SHRINE\nDust: {player.dust}  |  Gold: {player.currency}"
+        self.layout.add_widget(make_wrapped_label(status, font_size=18, bold=True, size_hint=(1, 0.15)))
 
-        self.layout.add_widget(Label(text="Select a spell to empower (+5 Dmg, max Lv 3):", size_hint=(1, 0.08)))
+        self.layout.add_widget(make_wrapped_label("Select a spell to empower (+5 Dmg, max Lv 3):", font_size=15, size_hint=(1, 0.08)))
 
-        scroll = ScrollView(size_hint=(1, 0.65))
+        scroll = ScrollView(size_hint=(1, 0.62))
         list_layout = BoxLayout(orientation='vertical', size_hint_y=None, spacing=10)
         list_layout.bind(minimum_height=list_layout.setter('height'))
 
         for spell in player.deck:
             cost_dust = spell.level * 50
-            btn_text = f"[{spell.spell_type}] {spell.name} (Lv {spell.level})\nDamage: {spell.damage} | Cost: {cost_dust} Dust"
-            btn = Button(text=btn_text, size_hint_y=None, height=80, disabled=(player.dust < cost_dust or spell.level >= 3))
+            btn_text = f"[{spell.spell_type}] {spell.name} (Lv {spell.level})\nDamage: {spell.damage} | Upgrade Cost: {cost_dust} Dust"
+            btn = Button(
+                text=btn_text,
+                font_size=14,
+                halign="center",
+                valign="middle",
+                size_hint_y=None,
+                height=80,
+                disabled=(player.dust < cost_dust or spell.level >= 3)
+            )
+            btn.bind(size=lambda s, w: setattr(s, 'text_size', w))
             btn.bind(on_press=lambda inst, s=spell, c=cost_dust: self.upgrade_spell(s, c))
             list_layout.add_widget(btn)
 
         scroll.add_widget(list_layout)
         self.layout.add_widget(scroll)
 
-        back_btn = Button(text="Back to Menu", size_hint=(1, 0.15))
+        back_btn = Button(text="Back to Menu", font_size=16, size_hint=(1, 0.15))
         back_btn.bind(on_press=lambda x: setattr(self.manager, 'current', 'menu'))
         self.layout.add_widget(back_btn)
 
@@ -402,13 +441,13 @@ class GrimoireScreen(Screen):
 
     def refresh_ui(self):
         self.layout.clear_widgets()
-        self.layout.add_widget(Label(text="ESOTERIC GRIMOIRE", font_size=24, size_hint=(1, 0.12)))
+        self.layout.add_widget(make_wrapped_label("ESOTERIC GRIMOIRE", font_size=22, bold=True, size_hint=(1, 0.12)))
 
         scroll = ScrollView(size_hint=(1, 0.73))
         list_layout = BoxLayout(orientation='vertical', size_hint_y=None, spacing=15)
         list_layout.bind(minimum_height=list_layout.setter('height'))
 
-        list_layout.add_widget(Label(text="=== COVEN ENTITIES ===", font_size=20, size_hint_y=None, height=40))
+        list_layout.add_widget(make_wrapped_label("=== COVEN ENTITIES ===", font_size=18, bold=True, height=35))
         for db_entity in DATABASE["Entities"]:
             is_unlocked = any(e.name == db_entity.name for e in player.roster)
             if is_unlocked:
@@ -416,10 +455,10 @@ class GrimoireScreen(Screen):
             else:
                 entry = f"🔒 {db_entity.name} [{db_entity.origin}]\n[LORE LOCKED - Summon to reveal entry]"
             
-            lbl = Label(text=entry, size_hint_y=None, height=110, halign="center")
+            lbl = make_wrapped_label(entry, font_size=13, height=100)
             list_layout.add_widget(lbl)
 
-        list_layout.add_widget(Label(text="=== URBAN LEGEND BESTIARY ===", font_size=20, size_hint_y=None, height=40))
+        list_layout.add_widget(make_wrapped_label("=== URBAN LEGEND BESTIARY ===", font_size=18, bold=True, height=35))
         for db_enemy in DATABASE["Bestiary"]:
             is_encountered = db_enemy.name in player.bestiary_unlocked
             if is_encountered:
@@ -427,13 +466,13 @@ class GrimoireScreen(Screen):
             else:
                 entry = f"❓ {db_enemy.name}\n[LORE LOCKED - Encounter on The Hunt to reveal]"
             
-            lbl = Label(text=entry, size_hint_y=None, height=90, halign="center")
+            lbl = make_wrapped_label(entry, font_size=13, height=85)
             list_layout.add_widget(lbl)
 
         scroll.add_widget(list_layout)
         self.layout.add_widget(scroll)
 
-        back_btn = Button(text="Back to Menu", size_hint=(1, 0.15))
+        back_btn = Button(text="Back to Menu", font_size=16, size_hint=(1, 0.15))
         back_btn.bind(on_press=lambda x: setattr(self.manager, 'current', 'menu'))
         self.layout.add_widget(back_btn)
 
@@ -446,25 +485,33 @@ class TeamScreen(Screen):
 
     def refresh_ui(self):
         self.layout.clear_widgets()
-        self.layout.add_widget(Label(text="COVEN & TEAM BUILDING", font_size=24, size_hint=(1, 0.15)))
+        self.layout.add_widget(make_wrapped_label("COVEN & TEAM BUILDING", font_size=22, bold=True, size_hint=(1, 0.12)))
 
-        active_text = f"Current Leader: {player.active_leader.name if player.active_leader else 'None'}"
-        self.layout.add_widget(Label(text=active_text, font_size=18, size_hint=(1, 0.1)))
+        active_text = f"Current Coven Leader: {player.active_leader.name if player.active_leader else 'None'}"
+        self.layout.add_widget(make_wrapped_label(active_text, font_size=16, size_hint=(1, 0.08)))
 
-        scroll = ScrollView(size_hint=(1, 0.6))
+        scroll = ScrollView(size_hint=(1, 0.65))
         list_layout = BoxLayout(orientation='vertical', size_hint_y=None, spacing=10)
         list_layout.bind(minimum_height=list_layout.setter('height'))
 
         for entity in player.roster:
             btn_text = f"Set {entity.name} [{entity.origin}]\nPassive: {entity.passive_desc}"
-            btn = Button(text=btn_text, size_hint_y=None, height=100)
+            btn = Button(
+                text=btn_text,
+                font_size=14,
+                halign="center",
+                valign="middle",
+                size_hint_y=None,
+                height=90
+            )
+            btn.bind(size=lambda s, w: setattr(s, 'text_size', w))
             btn.bind(on_press=lambda inst, e=entity: self.set_leader(e))
             list_layout.add_widget(btn)
 
         scroll.add_widget(list_layout)
         self.layout.add_widget(scroll)
 
-        back_btn = Button(text="Back to Menu", size_hint=(1, 0.15))
+        back_btn = Button(text="Back to Menu", font_size=16, size_hint=(1, 0.15))
         back_btn.bind(on_press=lambda x: setattr(self.manager, 'current', 'menu'))
         self.layout.add_widget(back_btn)
 
@@ -481,20 +528,20 @@ class ShopScreen(Screen):
 
     def refresh_shop(self):
         self.layout.clear_widgets()
-        self.layout.add_widget(Label(text="ALCHEMIST HUT", font_size=26, size_hint=(1, 0.15)))
+        self.layout.add_widget(make_wrapped_label("ALCHEMIST HUT", font_size=24, bold=True, size_hint=(1, 0.15)))
         
-        self.status_label = Label(text=f"Gold: {player.currency} | HP: {player.hp}/{player.max_hp}", font_size=18, size_hint=(1, 0.1))
-        self.layout.add_widget(self.status_label)
+        status_text = f"Gold: {player.currency}  |  HP: {player.hp}/{player.max_hp}"
+        self.layout.add_widget(make_wrapped_label(status_text, font_size=16, size_hint=(1, 0.1)))
 
-        btn_heal = Button(text="Buy Healing Salve (+30 HP) - 75 Gold", size_hint=(1, 0.2))
+        btn_heal = Button(text="Buy Healing Salve (+30 HP) - 75 Gold", font_size=16, size_hint=(1, 0.2))
         btn_heal.bind(on_press=self.buy_heal)
         self.layout.add_widget(btn_heal)
 
-        btn_spell = Button(text="Buy Random Ritual Spell - 120 Gold", size_hint=(1, 0.2))
+        btn_spell = Button(text="Buy Random Ritual Spell - 120 Gold", font_size=16, size_hint=(1, 0.2))
         btn_spell.bind(on_press=self.buy_spell)
         self.layout.add_widget(btn_spell)
 
-        leave_btn = Button(text="Leave Shop & Continue Path", size_hint=(1, 0.2))
+        leave_btn = Button(text="Leave Shop & Continue Path", font_size=16, size_hint=(1, 0.2))
         leave_btn.bind(on_press=self.leave_shop)
         self.layout.add_widget(leave_btn)
 
@@ -522,22 +569,26 @@ class GachaScreen(Screen):
         super().__init__(**kwargs)
         layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
         
-        self.status_label = Label(text=f"Currency: {player.currency} | Dust: {player.dust}\nReady to summon.", font_size=18, halign="center")
+        self.status_label = make_wrapped_label(
+            f"Currency: {player.currency} | Dust: {player.dust}\nReady to summon.",
+            font_size=16,
+            size_hint=(1, 0.15)
+        )
         layout.add_widget(self.status_label)
         
         self.card_image = Image(
             source='assets/summoning_circle.png', 
-            size_hint=(1, 0.4), 
+            size_hint=(1, 0.45), 
             allow_stretch=True, 
             keep_ratio=True
         )
         layout.add_widget(self.card_image)
         
-        self.summon_btn = Button(text="Summon (Cost: 100 Gold)", size_hint=(1, 0.2))
+        self.summon_btn = Button(text="Summon (Cost: 100 Gold)", font_size=16, size_hint=(1, 0.2))
         self.summon_btn.bind(on_press=self.start_summon)
         layout.add_widget(self.summon_btn)
         
-        back_btn = Button(text="Back to Menu", size_hint=(1, 0.2))
+        back_btn = Button(text="Back to Menu", font_size=16, size_hint=(1, 0.2))
         back_btn.bind(on_press=lambda x: setattr(self.manager, 'current', 'menu'))
         layout.add_widget(back_btn)
         
@@ -582,25 +633,33 @@ class HangoutScreen(Screen):
 
     def refresh_list(self):
         self.layout.clear_widgets()
-        self.layout.add_widget(Label(text="COVEN HANGOUT", font_size=24, size_hint=(1, 0.2)))
+        self.layout.add_widget(make_wrapped_label("COVEN HANGOUT", font_size=22, bold=True, size_hint=(1, 0.15)))
         
         if not player.roster:
-            self.layout.add_widget(Label(text="Your coven is empty. Go summon some entities!"))
+            self.layout.add_widget(make_wrapped_label("Your coven is empty. Go summon some entities!", font_size=16, size_hint=(1, 0.65)))
         else:
-            scroll = ScrollView(size_hint=(1, 0.6))
+            scroll = ScrollView(size_hint=(1, 0.65))
             list_layout = BoxLayout(orientation='vertical', size_hint_y=None, spacing=10)
             list_layout.bind(minimum_height=list_layout.setter('height'))
             
             for entity in player.roster:
                 btn_text = f"Talk to {entity.name} (Bond: {entity.bond}/100)"
-                btn = Button(text=btn_text, size_hint_y=None, height=100)
+                btn = Button(
+                    text=btn_text,
+                    font_size=14,
+                    halign="center",
+                    valign="middle",
+                    size_hint_y=None,
+                    height=80
+                )
+                btn.bind(size=lambda s, w: setattr(s, 'text_size', w))
                 btn.bind(on_press=lambda instance, e=entity: self.talk_to(e))
                 list_layout.add_widget(btn)
             
             scroll.add_widget(list_layout)
             self.layout.add_widget(scroll)
             
-        back_btn = Button(text="Back to Menu", size_hint=(1, 0.2))
+        back_btn = Button(text="Back to Menu", font_size=16, size_hint=(1, 0.2))
         back_btn.bind(on_press=lambda x: setattr(self.manager, 'current', 'menu'))
         self.layout.add_widget(back_btn)
 
