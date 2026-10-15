@@ -1,6 +1,7 @@
 from kivy.app import App
 from kivy.uix.screenmanager import ScreenManager, Screen
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.gridlayout import GridLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.scrollview import ScrollView
@@ -422,7 +423,6 @@ class CombatScreen(Screen):
             
         self.layout.add_widget(cards_layout)
         
-        # Navigation Row
         nav_row = BoxLayout(orientation='horizontal', spacing=10, size_hint=(1, 0.2))
         flee_btn = Button(text="Retreat", font_size='20sp')
         flee_btn.bind(on_press=self.retreat_combat)
@@ -535,10 +535,19 @@ class WebScreen(Screen):
             @run_on_ui_thread
             def create_webview():
                 webview = WebView(activity)
-                webview.getSettings().setJavaScriptEnabled(True)
-                webview.getSettings().setAllowFileAccess(True)
+                
+                # Enable JS and Local File Access Permissions
+                settings = webview.getSettings()
+                settings.setJavaScriptEnabled(True)
+                settings.setAllowFileAccess(True)
+                settings.setAllowFileAccessFromFileURLs(True)
+                settings.setAllowUniversalAccessFromFileURLs(True)
+                
                 webview.setWebViewClient(WebViewClient())
-                webview.loadUrl('file:///android_asset/assets/index.html')
+                
+                # Dynamically locate where Kivy extracted the index.html file on the device
+                html_path = os.path.abspath(os.path.join('assets', 'index.html'))
+                webview.loadUrl(f'file://{html_path}')
                 
                 webview.evaluateJavascript(f"initBattlefield({json_data});", None)
                 activity.setContentView(webview)
