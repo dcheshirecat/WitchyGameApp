@@ -5,7 +5,6 @@ from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.image import Image
-from kivy.uix.progressbar import ProgressBar
 from kivy.animation import Animation
 from kivy.utils import platform
 from kivy.clock import Clock
@@ -49,7 +48,7 @@ class Enemy:
         self.lore = lore
         self.image_file = image_file
 
-# Expanded Database with Deep Dialogue Trees
+# Expanded Database
 DATABASE = {
     "Entities": [
         Entity("Chloe (1 Star)", "Witch", 1, "Heals 3 HP on Fire spells", 
@@ -228,12 +227,13 @@ def make_wrapped_label(text, font_size='18sp', bold=False, color=(1, 1, 1, 1), s
     lbl.bind(size=lambda s, w: setattr(s, 'text_size', (w[0] - 20, None)))
     return lbl
 
+# --- Screens ---
 
 class MenuScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         layout = BoxLayout(orientation='vertical', padding=25, spacing=15)
-        layout.add_widget(make_wrapped_label("URBAN LEGEND DECKBUILDER", font_size='28sp', bold=True, size_hint=(1, 0.16)))
+        layout.add_widget(make_wrapped_label("URBAN LEGEND DECKBUILDER", font_size='28sp', bold=True, size_hint=(1, 0.2)))
         
         buttons = [
             ("Enter The Hunt (Combat Map)", self.go_to_map),
@@ -245,7 +245,7 @@ class MenuScreen(Screen):
         ]
         
         for text, callback in buttons:
-            btn = Button(text=text, font_size='18sp', size_hint=(1, 0.14))
+            btn = Button(text=text, font_size='18sp', size_hint=(1, 0.13))
             btn.bind(on_press=callback)
             layout.add_widget(btn)
             
@@ -303,7 +303,7 @@ class MapScreen(Screen):
                 elif tier_idx == player.current_tier:
                     btn_text = f"▶ {node['label']}"
                     btn_color = (0.9, 0.6, 0.2, 1)
-                    text_col = (0, 0, 0, 1) # Fix contrast issue!
+                    text_col = (0, 0, 0, 1) # High contrast text
                     is_disabled = False
                 else:
                     btn_text = f"🔒 {node['label']}"
@@ -345,7 +345,74 @@ class CombatScreen(Screen):
         self.mana = 3
         self.hand = []
         self.combat_log = "An enemy blocks your path!"
+        self.webview = None
+        
+        self.web_placeholder = BoxLayout(size_hint=(1, 0.45))
+        self.layout.add_widget(self.web_placeholder)
+        
+        self.ui_panel = BoxLayout(orientation='vertical', size_hint=(1, 0.55), spacing=8)
+        self.layout.add_widget(self.ui_panel)
         self.add_widget(self.layout)
+
+    def on_enter(self):
+        if platform == 'android':
+            self.load_android_webview()
+        else:
+            self.web_placeholder.clear_widgets()
+            self.web_placeholder.add_widget(make_wrapped_label("[3D Combat Engine Active]\nCompiling to APK activates the transparent 3D Battle Engine here.", font_size='14sp'))
+
+    def on_leave(self):
+        if platform == 'android' and getattr(self, 'webview', None):
+            from android.runnable import run_on_ui_thread
+            @run_on_ui_thread
+            def remove_wv():
+                if self.webview:
+                    parent = self.webview.getParent()
+                    if parent: parent.removeView(self.webview)
+                    self.webview = None
+            remove_wv()
+
+    def load_android_webview(self):
+        try:
+            from jnius import autoclass
+            from android.runnable import run_on_ui_thread
+
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            WebView = autoclass('android.webkit.WebView')
+            WebViewClient = autoclass('android.webkit.WebViewClient')
+            DisplayMetrics = autoclass('android.util.DisplayMetrics')
+            LayoutParams = autoclass('android.view.ViewGroup$LayoutParams')
+            
+            activity = PythonActivity.mActivity
+            metrics = DisplayMetrics()
+            activity.getWindowManager().getDefaultDisplay().getMetrics(metrics)
+            w = metrics.widthPixels
+            h = metrics.heightPixels
+
+            @run_on_ui_thread
+            def create_webview():
+                self.webview = WebView(activity)
+                settings = self.webview.getSettings()
+                settings.setJavaScriptEnabled(True)
+                settings.setAllowFileAccess(True)
+                settings.setAllowFileAccessFromFileURLs(True)
+                settings.setAllowUniversalAccessFromFileURLs(True)
+                
+                self.webview.setBackgroundColor(0)
+                self.webview.setWebViewClient(WebViewClient())
+                
+                html_path = os.path.abspath(os.path.join('assets', 'combat.html'))
+                self.webview.loadUrl(f'file://{html_path}')
+                
+                params = LayoutParams(w, int(h * 0.45))
+                activity.addContentView(self.webview, params)
+                
+                # Push initial combat state
+                self.sync_js_state()
+
+            create_webview()
+        except Exception as e:
+            self.web_placeholder.add_widget(make_wrapped_label(f"WebView Error: {str(e)}", font_size='14sp'))
 
     def start_combat(self, is_boss=False):
         if is_boss:
@@ -362,72 +429,81 @@ class CombatScreen(Screen):
         self.mana = 4 if (player.active_leader and "Lilith" in player.active_leader.name) else 3
         self.hand = random.sample(player.deck, min(3, len(player.deck)))
         self.update_ui()
+        self.sync_js_state()
+
+    def sync_js_state(self):
+        if platform == 'android' and getattr(self, 'webview', None):
+            payload = {
+                "enemyName": self.enemy.name,
+                "enemyHp": self.enemy.hp,
+                "enemyMaxHp": self.enemy.max_hp,
+                "enemyImg": self.enemy.image_file
+            }
+            json_data = json.dumps(payload)
+            from android.runnable import run_on_ui_thread
+            @run_on_ui_thread
+            def trigger():
+                self.webview.evaluateJavascript(f"updateCombatState({json_data});", None)
+            trigger()
+
+    def trigger_js_attack(self, attacker="player"):
+        if platform == 'android' and getattr(self, 'webview', None):
+            from android.runnable import run_on_ui_thread
+            @run_on_ui_thread
+            def trigger():
+                self.webview.evaluateJavascript(f"playAttackAnim('{attacker}');", None)
+            trigger()
 
     def update_ui(self, disable_input=False):
-        self.layout.clear_widgets()
+        self.ui_panel.clear_widgets()
         
         if self.enemy.hp <= 0:
             player.currency += 120
             player.current_tier += 1
             player.save_game()
-            self.layout.add_widget(make_wrapped_label(f"VICTORY!\nThe {self.enemy.name} was defeated.\nEarned 120 Gold!", font_size='30sp', bold=True, color=(1, 0.8, 0.2, 1), size_hint=(1, 0.7)))
-            back_btn = Button(text="Continue Path", font_size='22sp', size_hint=(1, 0.3))
+            self.ui_panel.add_widget(make_wrapped_label(f"VICTORY!\nThe {self.enemy.name} was defeated.\nEarned 120 Gold!", font_size='28sp', bold=True, color=(1, 0.8, 0.2, 1), size_hint=(1, 0.6)))
+            back_btn = Button(text="Continue Path", font_size='22sp', size_hint=(1, 0.4))
             back_btn.bind(on_press=self.finish_combat)
-            self.layout.add_widget(back_btn)
+            self.ui_panel.add_widget(back_btn)
             return
 
         if player.hp <= 0:
-            self.layout.add_widget(make_wrapped_label("YOU WERE DEFEATED...", font_size='32sp', bold=True, size_hint=(1, 0.7)))
-            back_btn = Button(text="Return to Menu", font_size='22sp', size_hint=(1, 0.3))
+            self.ui_panel.add_widget(make_wrapped_label("YOU WERE DEFEATED...", font_size='32sp', bold=True, size_hint=(1, 0.6)))
+            back_btn = Button(text="Return to Menu", font_size='22sp', size_hint=(1, 0.4))
             back_btn.bind(on_press=self.reset_run)
-            self.layout.add_widget(back_btn)
+            self.ui_panel.add_widget(back_btn)
             return
 
-        # 1. Visual Monster Area with Health Bar
-        enemy_area = BoxLayout(orientation='vertical', size_hint=(1, 0.35))
-        img_path = f"assets/{self.enemy.image_file}"
-        self.enemy_img = Image(source=img_path if os.path.exists(img_path) else 'assets/card_back.png', allow_stretch=True, keep_ratio=True)
-        enemy_area.add_widget(self.enemy_img)
-        
-        hp_box = BoxLayout(orientation='horizontal', size_hint=(1, 0.2), padding=10)
-        hp_box.add_widget(Label(text=f"{self.enemy.name} HP: {self.enemy.hp}/{self.enemy.max_hp}", font_size='14sp', size_hint=(0.4, 1)))
-        hp_bar = ProgressBar(max=self.enemy.max_hp, value=self.enemy.hp, size_hint=(0.6, 1))
-        hp_box.add_widget(hp_bar)
-        enemy_area.add_widget(hp_box)
-        self.layout.add_widget(enemy_area)
-
-        # 2. Player Status & Log
         status_text = f"Your HP: {player.hp}/{player.max_hp} (Shield: {player.block})  |  Mana: {self.mana}\nEnemy Statuses: Burn ({self.enemy.burn}) | Poison ({self.enemy.poison})"
-        self.layout.add_widget(make_wrapped_label(status_text, font_size='14sp', bold=True, size_hint=(1, 0.15)))
+        self.ui_panel.add_widget(make_wrapped_label(status_text, font_size='14sp', bold=True, size_hint=(1, 0.2)))
 
-        log_bg = BoxLayout(size_hint=(1, 0.1))
+        log_bg = BoxLayout(size_hint=(1, 0.15))
         log_bg.add_widget(make_wrapped_label(self.combat_log, font_size='15sp', color=(0.4, 0.9, 1, 1), bold=True))
-        self.layout.add_widget(log_bg)
+        self.ui_panel.add_widget(log_bg)
 
-        # 3. Cards & Controls
-        cards_layout = BoxLayout(orientation='horizontal', spacing=10, size_hint=(1, 0.3))
+        cards_layout = BoxLayout(orientation='horizontal', spacing=10, size_hint=(1, 0.45))
         for spell in self.hand:
             btn_text = f"{spell.name}\n[{spell.spell_type}]\nDmg: {spell.damage}\nCost: {spell.cost}"
             btn = Button(text=btn_text, font_size='14sp', halign="center", valign="middle", disabled=disable_input)
             btn.bind(size=lambda s, w: setattr(s, 'text_size', (w[0]-10, None)))
             btn.bind(on_press=lambda instance, s=spell, b=btn: self.cast_spell(s, b))
             cards_layout.add_widget(btn)
-        self.layout.add_widget(cards_layout)
+        self.ui_panel.add_widget(cards_layout)
         
-        nav_row = BoxLayout(orientation='horizontal', spacing=10, size_hint=(1, 0.1))
+        nav_row = BoxLayout(orientation='horizontal', spacing=10, size_hint=(1, 0.2))
         flee_btn = Button(text="Retreat", font_size='18sp', disabled=disable_input)
         flee_btn.bind(on_press=self.retreat_combat)
         end_turn_btn = Button(text="End Turn", font_size='18sp', background_color=(0.2, 0.6, 0.8, 1), disabled=disable_input)
         end_turn_btn.bind(on_press=self.enemy_turn)
         nav_row.add_widget(flee_btn)
         nav_row.add_widget(end_turn_btn)
-        self.layout.add_widget(nav_row)
+        self.ui_panel.add_widget(nav_row)
+        
+        self.sync_js_state()
 
     def cast_spell(self, spell, btn_widget):
         if self.mana >= spell.cost:
-            # Hit Flash Animation
-            anim = Animation(color=(1, 0, 0, 1), duration=0.1) + Animation(color=(1, 1, 1, 1), duration=0.1)
-            anim.start(self.enemy_img)
+            self.trigger_js_attack("player")
             
             self.mana -= spell.cost
             player.block += spell.block
@@ -451,9 +527,8 @@ class CombatScreen(Screen):
         Clock.schedule_once(self.resolve_enemy_turn, 1.0)
 
     def resolve_enemy_turn(self, dt):
-        shake = (Animation(x=self.layout.x + 15, duration=0.04) + Animation(x=self.layout.x - 15, duration=0.04) + Animation(x=self.layout.x, duration=0.04))
-        shake.start(self.layout)
-
+        self.trigger_js_attack("enemy")
+        
         if self.enemy.burn > 0:
             self.enemy.hp -= self.enemy.burn
             self.enemy.burn = max(0, self.enemy.burn - 1)
@@ -491,17 +566,11 @@ class GachaScreen(Screen):
         self.layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
         self.webview = None
         
-        # Top 65% is an empty placeholder box for the transparent Android WebView
         self.web_placeholder = BoxLayout(size_hint=(1, 0.65))
         self.layout.add_widget(self.web_placeholder)
         
-        # Bottom 35% is our Kivy Control Panel
         control_panel = BoxLayout(orientation='vertical', size_hint=(1, 0.35), padding=10, spacing=10)
-        
-        self.status_label = make_wrapped_label(
-            f"Gold: {player.currency} | Dust: {player.dust}\nTap 'Commence Ritual' to summon.",
-            font_size='16sp', size_hint=(1, 0.4)
-        )
+        self.status_label = make_wrapped_label(f"Gold: {player.currency} | Dust: {player.dust}\nTap 'Commence Ritual' to summon.", font_size='16sp', size_hint=(1, 0.4))
         control_panel.add_widget(self.status_label)
         
         self.summon_btn = Button(text="Commence Ritual (100 Gold)", font_size='18sp', size_hint=(1, 0.3), background_color=(0, 0.7, 0.9, 1))
@@ -521,7 +590,18 @@ class GachaScreen(Screen):
             self.load_android_webview()
         else:
             self.web_placeholder.clear_widgets()
-            self.web_placeholder.add_widget(make_wrapped_label("[3D Summoning Engine Active]\nCompiling to APK activates the transparent 3D Web Engine here.", font_size='16sp'))
+            self.web_placeholder.add_widget(make_wrapped_label("[3D Summoning Engine Active]", font_size='16sp'))
+
+    def on_leave(self):
+        if platform == 'android' and getattr(self, 'webview', None):
+            from android.runnable import run_on_ui_thread
+            @run_on_ui_thread
+            def remove_wv():
+                if self.webview:
+                    parent = self.webview.getParent()
+                    if parent: parent.removeView(self.webview)
+                    self.webview = None
+            remove_wv()
 
     def load_android_webview(self):
         try:
@@ -546,34 +626,20 @@ class GachaScreen(Screen):
                 settings = self.webview.getSettings()
                 settings.setJavaScriptEnabled(True)
                 settings.setAllowFileAccess(True)
-                settings.setAllowFileAccessFromFileURLs(True)
-                settings.setAllowUniversalAccessFromFileURLs(True)
-                
-                # Make WebView Transparent to match our Kivy background!
                 self.webview.setBackgroundColor(0)
                 self.webview.setWebViewClient(WebViewClient())
                 
                 html_path = os.path.abspath(os.path.join('assets', 'index.html'))
                 self.webview.loadUrl(f'file://{html_path}')
                 
-                # Attach WebView taking ONLY the top 65% of the screen so Kivy buttons aren't covered
                 params = LayoutParams(w, int(h * 0.65))
                 activity.addContentView(self.webview, params)
 
             create_webview()
         except Exception as e:
-            self.web_placeholder.add_widget(make_wrapped_label(f"WebView Error: {str(e)}", font_size='14sp'))
+            pass
 
     def go_back(self, instance):
-        if platform == 'android' and self.webview:
-            from android.runnable import run_on_ui_thread
-            @run_on_ui_thread
-            def remove_wv():
-                parent = self.webview.getParent()
-                if parent:
-                    parent.removeView(self.webview)
-                self.webview = None
-            remove_wv()
         self.manager.current = 'menu'
 
     def start_summon(self, instance):
@@ -582,8 +648,6 @@ class GachaScreen(Screen):
             return
             
         player.currency -= 100
-        
-        # Prevent spam clicking during animation
         self.summon_btn.disabled = True
         Clock.schedule_once(lambda dt: setattr(self.summon_btn, 'disabled', False), 2.5)
         
@@ -600,27 +664,26 @@ class GachaScreen(Screen):
             
             if not any(e.name == pulled.name for e in player.roster):
                 player.roster.append(pulled)
-                self.status_label.text = f"Summoned {pulled.name}!\nGold: {player.currency} | Dust: {player.dust}\nPassive: {pulled.passive_desc}"
+                self.status_label.text = f"Summoned {pulled.name}!\nPassive: {pulled.passive_desc}"
             else:
                 player.dust += 25
-                self.status_label.text = f"Duplicate {pulled.name}.\nConverted to 25 Arcane Dust!\nGold: {player.currency} | Dust: {player.dust}"
+                self.status_label.text = f"Duplicate {pulled.name}.\nConverted to 25 Arcane Dust!"
                 
             self.trigger_js_animation(img_file, pulled.name)
         else:
             pulled = random.choice(DATABASE["Spells"])
             player.deck.append(pulled)
-            self.status_label.text = f"Pulled Spell: {pulled.name}!\nGold: {player.currency} | Dust: {player.dust}\nDmg: {pulled.damage} | Blk: {pulled.block}"
+            self.status_label.text = f"Pulled Spell: {pulled.name}!\nDmg: {pulled.damage} | Blk: {pulled.block}"
             self.trigger_js_animation("card_back.png", pulled.name)
             
         player.save_game()
 
     def trigger_js_animation(self, img_file, entity_name):
-        if platform == 'android' and self.webview:
+        if platform == 'android' and getattr(self, 'webview', None):
             from android.runnable import run_on_ui_thread
             @run_on_ui_thread
             def trigger():
-                img_path = f"file:///android_asset/assets/{img_file}"
-                self.webview.evaluateJavascript(f"triggerSummon('{img_path}', '{entity_name}');", None)
+                self.webview.evaluateJavascript(f"triggerSummon('{img_file}', '{entity_name}');", None)
             trigger()
 
 
@@ -644,7 +707,10 @@ class UpgradeScreen(Screen):
         for spell in player.deck:
             cost_dust = spell.level * 50
             btn_text = f"[{spell.spell_type}] {spell.name} (Lv {spell.level})\nDamage: {spell.damage} | Upgrade Cost: {cost_dust} Dust"
-            btn = Button(text=btn_text, font_size='16sp', halign="center", valign="middle", size_hint_y=None, height=100, disabled=(player.dust < cost_dust or spell.level >= 3))
+            btn = Button(
+                text=btn_text, font_size='16sp', halign="center", valign="middle",
+                size_hint_y=None, height=100, disabled=(player.dust < cost_dust or spell.level >= 3)
+            )
             btn.bind(size=lambda s, w: setattr(s, 'text_size', (w[0]-20, None)))
             btn.bind(on_press=lambda inst, s=spell, c=cost_dust: self.upgrade_spell(s, c))
             list_layout.add_widget(btn)
@@ -883,8 +949,8 @@ class DeckbuilderApp(App):
         sm.add_widget(TeamScreen(name='team'))
         sm.add_widget(UpgradeScreen(name='upgrade'))
         sm.add_widget(GrimoireScreen(name='grimoire'))
-        sm.add_widget(GachaScreen(name='gacha'))
         sm.add_widget(ShopScreen(name='shop'))
+        sm.add_widget(GachaScreen(name='gacha'))
         sm.add_widget(HangoutScreen(name='hangout'))
         sm.add_widget(CombatScreen(name='combat'))
         return sm
