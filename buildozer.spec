@@ -35,7 +35,8 @@ orientation = portrait
 # (bool) Indicate if the application should be fullscreen or not
 fullscreen = 1
 
-# (list) The architectures to build for
+# --- THIS FORCES EXACTLY ONE APK ---
+# (list) The architectures to build for 
 android.archs = arm64-v8a
 
 # (int) Target Android API
