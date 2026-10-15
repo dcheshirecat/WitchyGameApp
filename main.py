@@ -10,6 +10,7 @@ from kivy.uix.progressbar import ProgressBar
 from kivy.animation import Animation
 from kivy.utils import platform
 from kivy.clock import Clock
+from kivy.graphics import Color, Rectangle, Line
 import random
 import json
 import os
@@ -96,8 +97,7 @@ class PlayerState:
             'team': [e.name for e in self.team]
         }
         try:
-            with open(save_path, 'w') as f:
-                json.dump(data, f)
+            with open(save_path, 'w') as f: json.dump(data, f)
         except Exception: pass
 
     def load_game(self):
@@ -107,11 +107,8 @@ class PlayerState:
         if os.path.exists(save_path):
             try:
                 with open(save_path, 'r') as f: data = json.load(f)
-                self.currency = data.get('currency', 500)
-                self.dust = data.get('dust', 100)
-                self.current_tier = data.get('current_tier', 0)
-                self.bestiary_unlocked = data.get('bestiary_unlocked', [])
-                
+                self.currency = data.get('currency', 500); self.dust = data.get('dust', 100)
+                self.current_tier = data.get('current_tier', 0); self.bestiary_unlocked = data.get('bestiary_unlocked', [])
                 self.roster = []
                 for saved_ent in data.get('roster', []):
                     for db_ent in DATABASE['Entities']:
@@ -119,7 +116,6 @@ class PlayerState:
                             db_ent.bond = saved_ent.get('bond', 0)
                             db_ent.current_hp = saved_ent.get('hp', 50)
                             self.roster.append(db_ent)
-                            
                 self.team = []
                 for t_name in data.get('team', []):
                     ent = next((e for e in self.roster if e.name == t_name), None)
@@ -134,6 +130,21 @@ def make_wrapped_label(text, font_size='18sp', bold=False, color=(1, 1, 1, 1), s
     lbl.bind(size=lambda s, w: setattr(s, 'text_size', (w[0] - 20, None)))
     return lbl
 
+class TrailWidget(BoxLayout):
+    def __init__(self, nodes, **kwargs):
+        super().__init__(**kwargs)
+        self.nodes = nodes
+        self.bind(pos=self.update_trail, size=self.update_trail)
+        with self.canvas.before:
+            Color(0.8, 0.6, 0.2, 0.8) # Gold dashed line
+            self.line = Line(width=3, dash_offset=5, dash_length=10)
+            
+    def update_trail(self, *args):
+        pts = []
+        for n in self.nodes:
+            pts.extend([self.x + self.width * n['pos'][0], self.y + self.height * n['pos'][1]])
+        self.line.points = pts
+
 # --- Screens ---
 
 class SplashScreen(Screen):
@@ -141,19 +152,28 @@ class SplashScreen(Screen):
         super().__init__(**kwargs)
         self.layout = FloatLayout()
         
-        # New Presplash background
         bg_path = 'presplash.png' if os.path.exists('presplash.png') else 'assets/card_back.png'
         self.layout.add_widget(Image(source=bg_path, allow_stretch=True, keep_ratio=False, size_hint=(1, 1)))
         
-        self.label = make_wrapped_label("Summoning the Coven...", font_size='24sp', bold=True, size_hint=(1, 0.2), height=100)
-        self.label.pos_hint = {'center_x': 0.5, 'y': 0.1}
-        self.layout.add_widget(self.label)
+        # High contrast background box for text visibility
+        text_bg = BoxLayout(size_hint=(0.8, 0.15), pos_hint={'center_x': 0.5, 'y': 0.1})
+        with text_bg.canvas.before:
+            Color(0, 0, 0, 0.8)
+            self.rect = Rectangle(pos=text_bg.pos, size=text_bg.size)
+        text_bg.bind(pos=self.update_rect, size=self.update_rect)
+        
+        self.label = make_wrapped_label("Summoning the Coven...", font_size='24sp', bold=True)
+        text_bg.add_widget(self.label)
+        self.layout.add_widget(text_bg)
         self.add_widget(self.layout)
+
+    def update_rect(self, instance, value):
+        self.rect.pos = instance.pos
+        self.rect.size = instance.size
 
     def on_enter(self):
         anim = Animation(opacity=0.2, duration=0.6) + Animation(opacity=1.0, duration=0.6)
-        anim.repeat = True
-        anim.start(self.label)
+        anim.repeat = True; anim.start(self.label)
         Clock.schedule_once(self.go_to_menu, 2.5)
 
     def go_to_menu(self, dt):
@@ -196,9 +216,37 @@ class MapScreen(Screen):
         
         # Lower Opacity Map Background
         bg_path = 'assets/map_bg.png' if os.path.exists('assets/map_bg.png') else 'assets/card_back.png'
-        bg = Image(source=bg_path, allow_stretch=True, keep_ratio=False, size_hint=(1, 1), pos_hint={'x':0, 'y':0}, color=(1, 1, 1, 0.4))
-        self.layout.add_widget(bg)
+        self.layout.add_widget(Image(source=bg_path, allow_stretch=True, keep_ratio=False, size_hint=(1, 1), pos_hint={'x':0, 'y':0}, color=(1, 1, 1, 0.4)))
         
+        # Add Node Connection Trails
+        self.layout.add_widget(TrailWidget(player.map_nodes, size_hint=(1,1), pos_hint={'x':0, 'y':0}))
+        
+        for idx, node in enumerate(player.map_nodes):
+            is_active = (idx == player.current_tier)
+            is_cleared = (idx < player.current_tier)
+            
+            orb_box = FloatLayout(size_hint=(None, None), size=(120, 100))
+            orb_box.pos_hint = {'center_x': node['pos'][0], 'center_y': node['pos'][1]}
+            btn_color = (0.3, 0.8, 0.3, 1) if is_cleared else (0, 0.8, 1, 1) if is_active else (0.4, 0.4, 0.4, 1)
+            
+            # The visual node (Replaces yellow squares)
+            img_src = 'assets/map_node.png' if os.path.exists('assets/map_node.png') else 'assets/summoning_circle.png'
+            node_img = Image(source=img_src, size_hint=(0.6, 0.6), pos_hint={'center_x': 0.5, 'center_y': 0.6}, color=btn_color)
+            orb_box.add_widget(node_img)
+            
+            # Invisible interactive button layered over the image
+            orb_btn = Button(background_normal='', background_color=(0,0,0,0), size_hint=(1, 1), pos_hint={'center_x': 0.5, 'center_y': 0.5}, disabled=not is_active)
+            orb_btn.bind(on_press=lambda inst, n=node['type']: self.enter_node(n))
+            if is_active:
+                anim = Animation(opacity=0.4, duration=0.8) + Animation(opacity=1.0, duration=0.8)
+                anim.repeat = True; anim.start(node_img)
+            orb_box.add_widget(orb_btn)
+            
+            lbl_color = (1,1,1,1) if is_active else (0.7,0.7,0.7,1)
+            orb_box.add_widget(Label(text=node['label'], font_size='14sp', bold=True, size_hint=(1, 0.3), pos_hint={'center_x': 0.5, 'y': 0}, color=lbl_color))
+            self.layout.add_widget(orb_box)
+
+        # UI Overlay
         ui_box = BoxLayout(orientation='vertical', size_hint=(1, 1))
         stats_text = f"Gold: {player.currency} | Dust: {player.dust}\nActive Coven Size: {len(player.team)}/3"
         ui_box.add_widget(make_wrapped_label(stats_text, font_size='18sp', bold=True, size_hint=(1, 0.15), color=(1,0.9,0.5,1)))
@@ -208,37 +256,14 @@ class MapScreen(Screen):
         ui_box.add_widget(back_btn)
         self.layout.add_widget(ui_box)
 
-        for idx, node in enumerate(player.map_nodes):
-            is_active = (idx == player.current_tier)
-            is_cleared = (idx < player.current_tier)
-            
-            orb_box = BoxLayout(orientation='vertical', size_hint=(None, None), size=(120, 100))
-            orb_box.pos_hint = {'center_x': node['pos'][0], 'center_y': node['pos'][1]}
-            btn_color = (0.3, 0.8, 0.3, 1) if is_cleared else (0, 0.8, 1, 1) if is_active else (0.4, 0.4, 0.4, 1)
-            
-            orb_path = 'assets/map_node.png' if os.path.exists('assets/map_node.png') else 'atlas://data/images/defaulttheme/button'
-            orb_btn = Button(background_normal=orb_path, background_color=btn_color, size_hint=(1, 0.7), disabled=not is_active)
-            orb_btn.bind(on_press=lambda inst, n=node['type']: self.enter_node(n))
-            if is_active:
-                anim = Animation(opacity=0.4, duration=0.8) + Animation(opacity=1.0, duration=0.8)
-                anim.repeat = True; anim.start(orb_btn)
-            orb_box.add_widget(orb_btn)
-            
-            lbl_color = (1,1,1,1) if is_active else (0.7,0.7,0.7,1)
-            orb_box.add_widget(Label(text=node['label'], font_size='14sp', bold=True, size_hint=(1, 0.3), color=lbl_color))
-            self.layout.add_widget(orb_box)
-
     def enter_node(self, node_type):
         if len(player.team) == 0:
-            # Need a team to progress! Route to team builder.
-            self.manager.current = 'team'
+            self.manager.current = 'team' # Must have a team to travel
             return
-            
         if node_type in ["Crossroads", "Boss"]:
             self.manager.get_screen('combat').start_combat(is_boss=(node_type == "Boss"))
             self.manager.current = 'combat'
         elif node_type == "Alchemist Shop":
-            self.manager.get_screen('shop').refresh_shop()
             self.manager.current = 'shop'
         elif node_type == "Shrine":
             for e in player.team: e.current_hp = min(e.max_hp, e.current_hp + 20)
@@ -278,11 +303,8 @@ class TeamScreen(Screen):
     def add_to_team(self, char_name):
         ent = next((e for e in player.roster if e.name == char_name), None)
         if ent:
-            # Toggle logic
-            if ent in player.team:
-                player.team.remove(ent)
-            elif len(player.team) < 3:
-                player.team.append(ent)
+            if ent in player.team: player.team.remove(ent)
+            elif len(player.team) < 3: player.team.append(ent)
         player.save_game()
         self.update_team_label()
 
@@ -333,8 +355,9 @@ class TeamScreen(Screen):
                 self.client = CustomClient()
                 self.webview.setWebViewClient(self.client)
                 html_path = os.path.abspath(os.path.join('assets', 'gallery.html'))
-                self.webview.loadUrl(f'file://{html_path}')
-                self.webview.evaluateJavascript(f"loadGallery('{json_data}');", None)
+                if os.path.exists(html_path):
+                    self.webview.loadUrl(f'file://{html_path}')
+                self.webview.evaluateJavascript(f"if(window.loadGallery) loadGallery('{json_data}');", None)
                 params = autoclass('android.view.ViewGroup$LayoutParams')(metrics.widthPixels, int(metrics.heightPixels * 0.7))
                 activity.addContentView(self.webview, params)
             create_webview()
@@ -354,7 +377,6 @@ class CombatScreen(Screen):
         
         self.web_placeholder = BoxLayout(size_hint=(1, 0.45))
         self.layout.add_widget(self.web_placeholder)
-        
         self.ui_panel = BoxLayout(orientation='vertical', size_hint=(1, 0.55), spacing=8)
         self.layout.add_widget(self.ui_panel)
         self.add_widget(self.layout)
@@ -364,18 +386,16 @@ class CombatScreen(Screen):
             self.load_android_webview()
         else:
             self.web_placeholder.clear_widgets()
-            self.web_placeholder.add_widget(make_wrapped_label("[3D Combat Engine Active]\nCompiling to APK activates Web Engine here.", font_size='14sp'))
+            self.web_placeholder.add_widget(make_wrapped_label("[3D Combat Engine Active]", font_size='14sp'))
 
     def on_leave(self):
         if platform == 'android' and getattr(self, 'webview', None):
             from android.runnable import run_on_ui_thread
-            wv = self.webview
-            self.webview = None
+            wv = self.webview; self.webview = None
             @run_on_ui_thread
             def remove_wv():
                 try:
-                    wv.setVisibility(8); wv.loadUrl("about:blank")
-                    parent = wv.getParent(); 
+                    wv.setVisibility(8); wv.loadUrl("about:blank"); parent = wv.getParent(); 
                     if parent: parent.removeView(wv)
                     wv.destroy()
                 except Exception: pass
@@ -399,11 +419,9 @@ class CombatScreen(Screen):
                 self.webview.getSettings().setAllowFileAccessFromFileURLs(True)
                 self.webview.setBackgroundColor(0)
                 self.webview.setWebViewClient(WebViewClient())
-                
                 html_path = os.path.abspath(os.path.join('assets', 'combat.html'))
                 if os.path.exists(html_path):
                     self.webview.loadUrl(f'file://{html_path}')
-                
                 params = autoclass('android.view.ViewGroup$LayoutParams')(metrics.widthPixels, int(metrics.heightPixels * 0.45))
                 activity.addContentView(self.webview, params)
                 self.sync_js_state()
@@ -428,35 +446,41 @@ class CombatScreen(Screen):
     def sync_js_state(self):
         if platform == 'android' and getattr(self, 'webview', None):
             payload = {"enemyName": self.enemy.name, "enemyHp": self.enemy.hp, "enemyMaxHp": self.enemy.max_hp, "enemyImg": self.enemy.image_file}
+            js_cmd = f"if(window.updateCombatState) updateCombatState({json.dumps(payload)});"
+            wv = self.webview
             from android.runnable import run_on_ui_thread
             @run_on_ui_thread
             def trigger():
-                self.webview.evaluateJavascript(f"if(window.updateCombatState) updateCombatState({json.dumps(payload)});", None)
+                try: 
+                    if wv: wv.evaluateJavascript(js_cmd, None)
+                except Exception: pass
             trigger()
 
     def trigger_js_attack(self, attacker="player"):
         if platform == 'android' and getattr(self, 'webview', None):
+            js_cmd = f"if(window.playAttackAnim) playAttackAnim('{attacker}');"
+            wv = self.webview
             from android.runnable import run_on_ui_thread
             @run_on_ui_thread
             def trigger():
-                self.webview.evaluateJavascript(f"if(window.playAttackAnim) playAttackAnim('{attacker}');", None)
+                try:
+                    if wv: wv.evaluateJavascript(js_cmd, None)
+                except Exception: pass
             trigger()
 
     def update_ui(self, disable_input=False):
         self.ui_panel.clear_widgets()
         
-        # Check Win Condition
         if self.enemy.hp <= 0:
             player.currency += 120
             player.current_tier += 1
             player.save_game()
-            self.ui_panel.add_widget(make_wrapped_label(f"VICTORY!\nThe {self.enemy.name} was defeated.\nEarned 120 Gold!", font_size='26sp', bold=True, color=(1, 0.8, 0.2, 1), size_hint=(1, 0.6)))
+            self.ui_panel.add_widget(make_wrapped_label(f"VICTORY!\nEarned 120 Gold!", font_size='26sp', bold=True, color=(1, 0.8, 0.2, 1), size_hint=(1, 0.6)))
             back_btn = Button(text="Continue Path", font_size='20sp', size_hint=(1, 0.4))
             back_btn.bind(on_press=self.finish_combat)
             self.ui_panel.add_widget(back_btn)
             return
 
-        # Check Loss Condition
         alive_team = [e for e in player.team if e.current_hp > 0]
         if not alive_team:
             self.ui_panel.add_widget(make_wrapped_label("YOUR COVEN WAS DEFEATED...", font_size='30sp', bold=True, size_hint=(1, 0.6)))
@@ -465,7 +489,6 @@ class CombatScreen(Screen):
             self.ui_panel.add_widget(back_btn)
             return
 
-        # Combat Status UI
         status_text = f"Coven Block: {player.block}  |  Mana: {player.mana}\nEnemy Statuses: Burn ({self.enemy.burn}) | Poison ({self.enemy.poison})"
         self.ui_panel.add_widget(make_wrapped_label(status_text, font_size='14sp', bold=True, size_hint=(1, 0.15)))
 
@@ -473,7 +496,6 @@ class CombatScreen(Screen):
         log_bg.add_widget(make_wrapped_label(self.combat_log, font_size='15sp', color=(0.4, 0.9, 1, 1), bold=True))
         self.ui_panel.add_widget(log_bg)
 
-        # Team Combat Buttons
         cards_layout = BoxLayout(orientation='horizontal', spacing=10, size_hint=(1, 0.5))
         for entity in player.team:
             if entity.current_hp > 0:
@@ -493,7 +515,6 @@ class CombatScreen(Screen):
         end_turn_btn.bind(on_press=self.enemy_turn)
         nav_row.add_widget(end_turn_btn)
         self.ui_panel.add_widget(nav_row)
-        
         self.sync_js_state()
 
     def cast_spell(self, entity, spell):
@@ -633,9 +654,8 @@ class GachaScreen(Screen):
         self.summon_btn.disabled = True
         Clock.schedule_once(lambda dt: setattr(self.summon_btn, 'disabled', False), 2.5)
         
-        if random.random() < 0.8: # Adjusted rates to favor getting characters!
+        if random.random() < 0.8: 
             pulled = random.choice(DATABASE["Entities"])
-            ult = pulled.ultimate_spell
             if not any(e.name == pulled.name for e in player.roster):
                 player.roster.append(pulled)
                 self.status_label.text = f"Summoned {pulled.name}!\nPassive: {pulled.passive_desc}"
@@ -653,10 +673,14 @@ class GachaScreen(Screen):
 
     def trigger_js_animation(self, img_file, entity_name):
         if platform == 'android' and getattr(self, 'webview', None):
+            js_cmd = f"if(window.triggerSummon) triggerSummon('{img_file}', '{entity_name}');"
+            wv = self.webview
             from android.runnable import run_on_ui_thread
             @run_on_ui_thread
             def trigger():
-                self.webview.evaluateJavascript(f"if(window.triggerSummon) triggerSummon('{img_file}', '{entity_name}');", None)
+                try:
+                    if wv: wv.evaluateJavascript(js_cmd, None)
+                except Exception: pass
             trigger()
 
 
@@ -665,6 +689,9 @@ class UpgradeScreen(Screen):
         super().__init__(**kwargs)
         self.layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
         self.add_widget(self.layout)
+
+    def on_enter(self):
+        self.refresh_ui()
 
     def refresh_ui(self):
         self.layout.clear_widgets()
@@ -705,6 +732,9 @@ class GrimoireScreen(Screen):
         self.layout = BoxLayout(orientation='vertical', padding=20, spacing=15)
         self.add_widget(self.layout)
 
+    def on_enter(self):
+        self.refresh_ui()
+
     def refresh_ui(self):
         self.layout.clear_widgets()
         self.layout.add_widget(make_wrapped_label("ESOTERIC GRIMOIRE", font_size='24sp', bold=True, size_hint=(1, 0.12)))
@@ -741,6 +771,9 @@ class ShopScreen(Screen):
         super().__init__(**kwargs)
         self.layout = BoxLayout(orientation='vertical', padding=20, spacing=15)
         self.add_widget(self.layout)
+
+    def on_enter(self):
+        self.refresh_shop()
 
     def refresh_shop(self):
         self.layout.clear_widgets()
@@ -788,6 +821,9 @@ class HangoutScreen(Screen):
         super().__init__(**kwargs)
         self.layout = BoxLayout(orientation='vertical', padding=20, spacing=15)
         self.add_widget(self.layout)
+
+    def on_enter(self):
+        self.refresh_list()
 
     def refresh_list(self):
         self.layout.clear_widgets()
