@@ -18,20 +18,21 @@ class Spell:
         self.name = name
         self.damage = damage
         self.cost = cost
-        self.spell_type = spell_type  # "Nature", "Shadow", "Divine"
+        self.spell_type = spell_type
         self.block = block
-        self.status_effect = status_effect  # ("Burn", value) or ("Poison", value)
+        self.status_effect = status_effect
         self.level = level
 
 class Entity:
-    def __init__(self, name, origin, rarity, passive_desc, ultimate_spell, lore):
+    def __init__(self, name, origin, rarity, passive_desc, ultimate_spell, lore, dialogues=None):
         self.name = name
-        self.origin = origin  # "Witch", "Fae", "Angel"
+        self.origin = origin
         self.rarity = rarity
         self.passive_desc = passive_desc
         self.ultimate_spell = ultimate_spell
         self.lore = lore
         self.bond = 0
+        self.dialogues = dialogues or []
 
 class Enemy:
     def __init__(self, name, hp, weakness, intents, lore):
@@ -45,32 +46,89 @@ class Enemy:
         self.intents = intents
         self.lore = lore
 
+# Expanded Database with Dialogue Trees
 DATABASE = {
     "Entities": [
         Entity("Chloe (1 Star)", "Witch", 1, "Heals 3 HP on Fire spells", 
                Spell("Fireball", 15, 2, "Nature", status_effect=("Burn", 5)),
-               "A village herbalist who learned to kindle eldritch embers in secret root cellars."),
+               "A village herbalist who learned to kindle eldritch embers in secret root cellars.",
+               dialogues=[{
+                   "prompt": "The moon is full. Should we harvest Nightshade or Mandrake tonight?",
+                   "options": [
+                       {"text": "Nightshade for hexes.", "reward": ("bond", 25)},
+                       {"text": "Mandrake for alchemy.", "reward": ("dust", 30)}
+                   ]
+               }]),
         Entity("Sam (2 Star)", "Witch", 2, "+10% Shadow damage", 
                Spell("Shadow Strike", 30, 3, "Shadow", status_effect=("Poison", 4)),
-               "A solitary hedge witch capable of weaving twilight into deadly piercing blades."),
+               "A solitary hedge witch capable of weaving twilight into deadly piercing blades.",
+               dialogues=[{
+                   "prompt": "The shadows are restless. Do you fear the dark?",
+                   "options": [
+                       {"text": "I embrace it.", "reward": ("bond", 25)},
+                       {"text": "It hides our enemies.", "reward": ("currency", 50)}
+                   ]
+               }]),
         Entity("Lilith (3 Star)", "Witch", 3, "Start combat with +1 Mana", 
                Spell("Obliterate", 100, 5, "Shadow"),
-               "The ancient grand witch of dark arcana, commanding supreme shadow geometry."),
+               "The ancient grand witch of dark arcana, commanding supreme shadow geometry.",
+               dialogues=[{
+                   "prompt": "True power requires blood sacrifice. What will you offer?",
+                   "options": [
+                       {"text": "My own blood.", "reward": ("bond", 35)},
+                       {"text": "The blood of my foes.", "reward": ("dust", 50)}
+                   ]
+               }]),
         Entity("Puck (1 Star)", "Fae", 1, "Draw +1 card at battle start", 
                Spell("Trickster Spark", 12, 1, "Nature"),
-               "An elusive woodland spirit whose laughter bends probability and misdirects travelers."),
+               "An elusive woodland spirit whose laughter bends probability and misdirects travelers.",
+               dialogues=[{
+                   "prompt": "Pick a hand, mortal! Left or Right?",
+                   "options": [
+                       {"text": "The Left Hand.", "reward": ("dust", 20)},
+                       {"text": "The Right Hand.", "reward": ("bond", 25)}
+                   ]
+               }]),
         Entity("The Kelpie (2 Star)", "Fae", 2, "Enemies take 15% more damage", 
                Spell("Drowning Depths", 35, 3, "Nature"),
-               "A shapeshifting water demon of Scottish lochs that drags the unwary beneath dark waters."),
+               "A shapeshifting water demon of Scottish lochs that drags the unwary beneath dark waters.",
+               dialogues=[{
+                   "prompt": "The water is so very cold... come closer.",
+                   "options": [
+                       {"text": "Step back.", "reward": ("dust", 25)},
+                       {"text": "Offer an apple.", "reward": ("bond", 25)}
+                   ]
+               }]),
         Entity("Queen Mab (3 Star)", "Fae", 3, "Steals 1 enemy intent turn", 
                Spell("Nightmare Realm", 75, 4, "Shadow"),
-               "Monarch of the Unseelie court, governing bad dreams, illusions, and nocturnal oaths."),
+               "Monarch of the Unseelie court, governing bad dreams, illusions, and nocturnal oaths.",
+               dialogues=[{
+                   "prompt": "Will you swear fealty to the winter court?",
+                   "options": [
+                       {"text": "Yes, my Queen.", "reward": ("bond", 25)},
+                       {"text": "I serve no one.", "reward": ("dust", 40)}
+                   ]
+               }]),
         Entity("Ophanim (2 Star)", "Angel", 2, "Gain 5 Block each turn", 
                Spell("Wheel of Eyes", 25, 2, "Divine", block=15),
-               "A celestial ring of spinning golden wheels lined with a hundred vigilant eyes."),
+               "A celestial ring of spinning golden wheels lined with a hundred vigilant eyes.",
+               dialogues=[{
+                   "prompt": "BE NOT AFRAID.",
+                   "options": [
+                       {"text": "I am not afraid.", "reward": ("bond", 25)},
+                       {"text": "I am terrified.", "reward": ("currency", 75)}
+                   ]
+               }]),
         Entity("Metatron (3 Star)", "Angel", 3, "Purges enemy buffs", 
                Spell("Wrath of Heaven", 120, 6, "Divine", block=30),
-               "The supreme voice of the heavens whose spoken word incinerates unholy hexes.")
+               "The supreme voice of the heavens whose spoken word incinerates unholy hexes.",
+               dialogues=[{
+                   "prompt": "The scales of reality must be balanced.",
+                   "options": [
+                       {"text": "Then balance them.", "reward": ("bond", 25)},
+                       {"text": "Break the scales.", "reward": ("dust", 50)}
+                   ]
+               }])
     ],
     "Spells": [
         Spell("Basic Strike", 5, 1, "Nature"),
@@ -528,8 +586,11 @@ class TeamScreen(Screen):
         list_layout.bind(minimum_height=list_layout.setter('height'))
 
         for entity in player.roster:
-            btn_text = f"Set {entity.name} [{entity.origin}]\nPassive: {entity.passive_desc}"
-            btn = Button(text=btn_text, font_size=14, halign="center", valign="middle", size_hint_y=None, height=90)
+            # Added visible stats for the ultimate spell to the Team Builder
+            ult = entity.ultimate_spell
+            btn_text = (f"Set {entity.name} [{entity.origin}]\nPassive: {entity.passive_desc}\n"
+                        f"Ult: {ult.name} (Dmg:{ult.damage}, Cost:{ult.cost}, Blk:{ult.block})")
+            btn = Button(text=btn_text, font_size=14, halign="center", valign="middle", size_hint_y=None, height=110)
             btn.bind(size=lambda s, w: setattr(s, 'text_size', w))
             btn.bind(on_press=lambda inst, e=entity: self.set_leader(e))
             list_layout.add_widget(btn)
@@ -597,13 +658,13 @@ class GachaScreen(Screen):
         
         self.status_label = make_wrapped_label(
             f"Currency: {player.currency} | Dust: {player.dust}\nReady to summon.",
-            font_size=16, size_hint=(1, 0.15)
+            font_size=16, size_hint=(1, 0.25)
         )
         layout.add_widget(self.status_label)
         
         self.card_image = Image(
             source='assets/summoning_circle.png', 
-            size_hint=(1, 0.45), allow_stretch=True, keep_ratio=True
+            size_hint=(1, 0.35), allow_stretch=True, keep_ratio=True
         )
         layout.add_widget(self.card_image)
         
@@ -626,9 +687,12 @@ class GachaScreen(Screen):
         
         if random.random() < 0.4:
             pulled = random.choice(DATABASE["Entities"])
+            ult = pulled.ultimate_spell
             if not any(e.name == pulled.name for e in player.roster):
                 player.roster.append(pulled)
-                self.status_label.text = f"Summoned {pulled.origin}:\n{pulled.name}!"
+                # Formatted detailed stats for newly pulled Entity
+                self.status_label.text = (f"Summoned {pulled.origin}: {pulled.name}!\nPassive: {pulled.passive_desc}\n"
+                                          f"Ult: {ult.name} [Type: {ult.spell_type} | Dmg: {ult.damage} | Blk: {ult.block} | Cost: {ult.cost}]")
             else:
                 player.dust += 25
                 self.status_label.text = f"Duplicate {pulled.name}.\nConverted to 25 Arcane Dust!"
@@ -654,7 +718,9 @@ class GachaScreen(Screen):
         else:
             pulled = random.choice(DATABASE["Spells"])
             player.deck.append(pulled)
-            self.status_label.text = f"Pulled Ritual Spell:\n{pulled.name}!"
+            # Formatted detailed stats for newly pulled Spell
+            self.status_label.text = (f"Pulled Spell: {pulled.name}!\nType: {pulled.spell_type} | "
+                                      f"Dmg: {pulled.damage} | Blk: {pulled.block} | Cost: {pulled.cost}")
             self.card_image.source = 'assets/card_back.png'
 
 
@@ -679,7 +745,7 @@ class HangoutScreen(Screen):
                 btn_text = f"Talk to {entity.name} (Bond: {entity.bond}/100)"
                 btn = Button(text=btn_text, font_size=14, halign="center", valign="middle", size_hint_y=None, height=80)
                 btn.bind(size=lambda s, w: setattr(s, 'text_size', w))
-                btn.bind(on_press=lambda instance, e=entity: self.talk_to(e))
+                btn.bind(on_press=lambda instance, e=entity: self.open_dialogue(e))
                 list_layout.add_widget(btn)
             
             scroll.add_widget(list_layout)
@@ -689,12 +755,51 @@ class HangoutScreen(Screen):
         back_btn.bind(on_press=lambda x: setattr(self.manager, 'current', 'menu'))
         self.layout.add_widget(back_btn)
 
-    def talk_to(self, entity):
-        if entity.bond < 100:
-            entity.bond += 25
+    def open_dialogue(self, entity):
+        self.layout.clear_widgets()
+        
+        if not entity.dialogues:
+            self.layout.add_widget(make_wrapped_label(f"{entity.name} stares at you silently.", font_size=18, size_hint=(1, 0.5)))
+            btn = Button(text="Leave", size_hint=(1, 0.2))
+            btn.bind(on_press=lambda x: self.refresh_list())
+            self.layout.add_widget(btn)
+            return
+
+        dialogue = random.choice(entity.dialogues)
+        self.layout.add_widget(make_wrapped_label(f"{entity.name}:\n\"{dialogue['prompt']}\"", font_size=18, size_hint=(1, 0.4)))
+
+        # Render branching dialogue options
+        options_layout = BoxLayout(orientation='vertical', spacing=10, size_hint=(1, 0.4))
+        for opt in dialogue['options']:
+            btn = Button(text=opt['text'], font_size=16)
+            btn.bind(on_press=lambda inst, e=entity, r=opt['reward']: self.resolve_dialogue(e, r))
+            options_layout.add_widget(btn)
+
+        self.layout.add_widget(options_layout)
+
+    def resolve_dialogue(self, entity, reward):
+        reward_type, val = reward
+        result_text = ""
+        
+        if reward_type == "bond":
+            entity.bond += val
+            result_text = f"Your bond with {entity.name} increased by {val}!"
             if entity.bond >= 100:
                 player.deck.append(entity.ultimate_spell)
-        self.refresh_list()
+                result_text += f"\nMax Bond Reached! You gained the spell: {entity.ultimate_spell.name}."
+        elif reward_type == "dust":
+            player.dust += val
+            result_text = f"You searched the area and found {val} Arcane Dust."
+        elif reward_type == "currency":
+            player.currency += val
+            result_text = f"{entity.name} handed you {val} Gold."
+
+        self.layout.clear_widgets()
+        self.layout.add_widget(make_wrapped_label(result_text, font_size=18, size_hint=(1, 0.7)))
+        
+        btn = Button(text="Continue", font_size=16, size_hint=(1, 0.3))
+        btn.bind(on_press=lambda x: self.refresh_list())
+        self.layout.add_widget(btn)
 
 
 # --- App Runner ---
