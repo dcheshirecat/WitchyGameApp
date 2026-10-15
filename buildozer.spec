@@ -12,16 +12,16 @@ package.domain = org.witchygame
 # (str) Source code where the main.py lives
 source.dir = .
 
-# (list) Source files to include
-source.include_exts = py,png,jpg,kv,atlas
+# (list) Source files to include (includes html, css, js for local WebView integration)
+source.include_exts = py,png,jpg,kv,atlas,html,css,js
 
 # (list) List of inclusions using pattern matching to ensure assets are packaged
-source.include_patterns = assets/*, assets/images/*
+source.include_patterns = assets/*, assets/images/*, assets/*.html
 
 # (str) Application versioning
 version = 0.1
 
-# (list) Application requirements
+# (list) Application requirements (Pinned to Python 3.10.12 and NDK 25b to prevent compiler stalls)
 requirements = python3==3.10.12,hostpython3==3.10.12,kivy,pyjnius,android
 
 # (str) Supported orientations (landscape, portrait or all)
@@ -30,7 +30,7 @@ orientation = portrait
 # (bool) Indicate if the application should be fullscreen or not
 fullscreen = 1
 
-# (list) The architectures to build for
+# (list) The architectures to build for (arm64-v8a avoids cross-compilation linking errors)
 android.archs = arm64-v8a
 
 # (int) Target Android API
