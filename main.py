@@ -13,94 +13,55 @@ from kivy.clock import Clock
 import random
 import json
 import os
+import urllib.parse
 
 # --- Core Data Structures ---
 
 class Spell:
     def __init__(self, name, damage, cost, spell_type="Nature", block=0, status_effect=None, level=1):
-        self.name = name
-        self.damage = damage
-        self.cost = cost
-        self.spell_type = spell_type
-        self.block = block
-        self.status_effect = status_effect
-        self.level = level
+        self.name = name; self.damage = damage; self.cost = cost; self.spell_type = spell_type; self.block = block; self.status_effect = status_effect; self.level = level
 
 class Entity:
     def __init__(self, name, origin, rarity, passive_desc, ultimate_spell, lore, image_file, dialogues=None):
-        self.name = name
-        self.origin = origin
-        self.rarity = rarity
-        self.passive_desc = passive_desc
-        self.ultimate_spell = ultimate_spell
-        self.lore = lore
-        self.image_file = image_file
-        self.bond = 0
-        self.dialogues = dialogues or []
+        self.name = name; self.origin = origin; self.rarity = rarity; self.passive_desc = passive_desc; self.ultimate_spell = ultimate_spell
+        self.lore = lore; self.image_file = image_file; self.bond = 0; self.current_hp = 50; self.max_hp = 50; self.dialogues = dialogues or []
 
 class Enemy:
     def __init__(self, name, hp, weakness, intents, lore, image_file):
-        self.name = name
-        self.max_hp = hp
-        self.hp = hp
-        self.block = 0
-        self.burn = 0
-        self.poison = 0
-        self.weakness = weakness
-        self.intents = intents
-        self.lore = lore
-        self.image_file = image_file
+        self.name = name; self.max_hp = hp; self.hp = hp; self.block = 0; self.burn = 0; self.poison = 0; self.weakness = weakness; self.intents = intents; self.lore = lore; self.image_file = image_file
 
 # Expanded Database
 DATABASE = {
     "Entities": [
-        Entity("Chloe (1 Star)", "Witch", 1, "Heals 3 HP on Fire spells", 
-               Spell("Fireball", 15, 2, "Nature", status_effect=("Burn", 5)),
-               "A village herbalist who learned to kindle eldritch embers.", "chloe.png",
-               dialogues=[
-                   {"prompt": "The moon is full. Should we harvest Nightshade or Mandrake tonight?",
-                    "options": [{"text": "Nightshade for hexes.", "reward": ("bond", 25)}, {"text": "Mandrake for alchemy.", "reward": ("dust", 30)}]},
-                   {"prompt": "The villagers suspect me. They whisper when I buy sulfur.",
-                    "options": [{"text": "Let them burn.", "reward": ("currency", 50)}, {"text": "Hide your craft.", "reward": ("bond", 20)}]}
-               ]),
-        Entity("Sam (2 Star)", "Witch", 2, "+10% Shadow damage", 
-               Spell("Shadow Strike", 30, 3, "Shadow", status_effect=("Poison", 4)),
-               "A solitary hedge witch capable of weaving twilight into deadly blades.", "sam.png",
-               dialogues=[
-                   {"prompt": "The shadows are restless. Do you fear the dark?",
-                    "options": [{"text": "I embrace it.", "reward": ("bond", 25)}, {"text": "It hides our enemies.", "reward": ("currency", 50)}]},
-                   {"prompt": "They burned my coven. I will not forget.",
-                    "options": [{"text": "We will have vengeance.", "reward": ("bond", 35)}, {"text": "Focus on the Hunt.", "reward": ("dust", 30)}]}
-               ]),
-        Entity("Lilith (3 Star)", "Witch", 3, "Start combat with +1 Mana", 
-               Spell("Obliterate", 100, 5, "Shadow"),
-               "The ancient grand witch of dark arcana.", "lilith.png",
-               dialogues=[
-                   {"prompt": "True power requires blood sacrifice. What will you offer?",
-                    "options": [{"text": "My own blood.", "reward": ("bond", 35)}, {"text": "The blood of my foes.", "reward": ("dust", 50)}]},
-                   {"prompt": "Look into the abyss with me.",
-                    "options": [{"text": "[Stare into the Void]", "reward": ("dust", 60)}, {"text": "[Avert your eyes]", "reward": ("currency", 100)}]}
-               ]),
-        Entity("Puck (1 Star)", "Fae", 1, "Draw +1 card at battle start", 
-               Spell("Trickster Spark", 12, 1, "Nature"),
-               "An elusive woodland spirit whose laughter bends probability.", "puck.png",
-               dialogues=[
-                   {"prompt": "Pick a hand, mortal! Left or Right?",
-                    "options": [{"text": "Left.", "reward": ("dust", 20)}, {"text": "Right.", "reward": ("bond", 25)}]}
-               ]),
-        Entity("Ophanim (2 Star)", "Angel", 2, "Gain 5 Block each turn", 
-               Spell("Wheel of Eyes", 25, 2, "Divine", block=15),
-               "A celestial ring of spinning golden wheels.", "ophanim.png",
-               dialogues=[
-                   {"prompt": "BE NOT AFRAID.",
-                    "options": [{"text": "I am not afraid.", "reward": ("bond", 25)}, {"text": "I am terrified.", "reward": ("currency", 75)}]}
-               ])
+        Entity("Chloe (1 Star)", "Witch", 1, "Heals 3 HP on Fire spells", Spell("Fireball", 15, 2, "Nature", status_effect=("Burn", 5)), "Village herbalist.", "chloe.png", dialogues=[
+            {"prompt": "The moon is full. Should we harvest Nightshade or Mandrake tonight?", "options": [{"text": "Nightshade.", "reward": ("bond", 25)}, {"text": "Mandrake.", "reward": ("dust", 30)}]}
+        ]),
+        Entity("Sam (2 Star)", "Witch", 2, "+10% Shadow damage", Spell("Shadow Strike", 30, 3, "Shadow", status_effect=("Poison", 4)), "Solitary hedge witch.", "sam.png", dialogues=[
+            {"prompt": "The shadows are restless. Do you fear the dark?", "options": [{"text": "I embrace it.", "reward": ("bond", 25)}, {"text": "It hides our enemies.", "reward": ("currency", 50)}]}
+        ]),
+        Entity("Lilith (3 Star)", "Witch", 3, "Start combat with +1 Mana", Spell("Obliterate", 100, 5, "Shadow"), "Ancient grand witch.", "lilith.png", dialogues=[
+            {"prompt": "True power requires sacrifice.", "options": [{"text": "My blood.", "reward": ("bond", 35)}, {"text": "Their blood.", "reward": ("dust", 50)}]}
+        ]),
+        Entity("Puck (1 Star)", "Fae", 1, "Draw +1 card at battle start", Spell("Trickster Spark", 12, 1, "Nature"), "Elusive woodland spirit.", "puck.png", dialogues=[
+            {"prompt": "Pick a hand, mortal! Left or Right?", "options": [{"text": "Left.", "reward": ("dust", 20)}, {"text": "Right.", "reward": ("bond", 25)}]}
+        ]),
+        Entity("The Kelpie (2 Star)", "Fae", 2, "Enemies take 15% more damage", Spell("Drowning Depths", 35, 3, "Nature"), "A shapeshifting water demon.", "kelpie.png", dialogues=[
+            {"prompt": "The water is cold... come closer.", "options": [{"text": "Step back.", "reward": ("dust", 25)}, {"text": "Offer an apple.", "reward": ("bond", 25)}]}
+        ]),
+        Entity("Queen Mab (3 Star)", "Fae", 3, "Steals 1 enemy intent turn", Spell("Nightmare Realm", 75, 4, "Shadow"), "Monarch of the Unseelie court.", "queen_mab.png", dialogues=[
+            {"prompt": "Will you swear fealty?", "options": [{"text": "Yes, my Queen.", "reward": ("bond", 35)}, {"text": "I serve no one.", "reward": ("dust", 50)}]}
+        ]),
+        Entity("Ophanim (2 Star)", "Angel", 2, "Gain 5 Block each turn", Spell("Wheel of Eyes", 25, 2, "Divine", block=15), "A celestial ring of spinning wheels.", "ophanim.png", dialogues=[
+            {"prompt": "BE NOT AFRAID.", "options": [{"text": "I am not afraid.", "reward": ("bond", 25)}, {"text": "I am terrified.", "reward": ("currency", 75)}]}
+        ]),
+        Entity("Metatron (3 Star)", "Angel", 3, "Purges enemy buffs", Spell("Wrath of Heaven", 120, 6, "Divine", block=30), "Supreme voice of the heavens.", "metatron.png", dialogues=[
+            {"prompt": "The scales of reality must be balanced.", "options": [{"text": "Balance them.", "reward": ("bond", 25)}, {"text": "Break the scales.", "reward": ("dust", 50)}]}
+        ])
     ],
     "Spells": [
-        Spell("Basic Strike", 5, 1, "Nature"),
-        Spell("Zap", 5, 1, "Divine"),
-        Spell("Hex of Rot", 12, 2, "Shadow", status_effect=("Poison", 3)),
-        Spell("Holy Barrier", 0, 2, "Divine", block=20)
+        Spell("Basic Strike", 5, 1, "Nature"), Spell("Zap", 5, 1, "Divine"), 
+        Spell("Punch", 10, 1, "Nature"), Spell("Magic Missile", 20, 2, "Divine"),
+        Spell("Hex of Rot", 12, 2, "Shadow", status_effect=("Poison", 3)), Spell("Holy Barrier", 0, 2, "Divine", block=20)
     ],
     "Bestiary": [
         Enemy("Woodland Shade", 60, "Divine", [("Attack", 10)], "A lingering spirit.", "woodland_shade.png"),
@@ -112,19 +73,12 @@ class PlayerState:
     def __init__(self):
         self.currency = 500
         self.dust = 100
-        self.hp = 80
-        self.max_hp = 80
-        self.block = 0
         self.roster = []
+        self.team = [] # The active combat team (Max 3)
         self.bestiary_unlocked = []
-        self.active_leader = None
-        self.deck = [
-            Spell("Basic Strike", 5, 1, "Nature"), 
-            Spell("Basic Strike", 5, 1, "Nature"),
-            Spell("Zap", 5, 1, "Divine"),
-            Spell("Holy Barrier", 0, 2, "Divine", block=15)
-        ]
         self.current_tier = 0
+        self.mana = 3
+        self.block = 0
         self.map_nodes = [
             {"id": 0, "type": "Crossroads", "label": "Path Alpha", "pos": (0.3, 0.2)},
             {"id": 1, "type": "Alchemist Shop", "label": "Apothecary", "pos": (0.7, 0.4)},
@@ -137,17 +91,14 @@ class PlayerState:
         if not app: return
         save_path = os.path.join(app.user_data_dir, 'savegame.json')
         data = {
-            'currency': self.currency, 'dust': self.dust, 'hp': self.hp, 'max_hp': self.max_hp,
-            'current_tier': self.current_tier, 'bestiary_unlocked': self.bestiary_unlocked,
-            'roster': [{'name': e.name, 'bond': e.bond} for e in self.roster],
-            'active_leader': self.active_leader.name if self.active_leader else None,
-            'deck': [{'name': s.name, 'level': s.level, 'damage': s.damage, 'cost': s.cost, 'spell_type': s.spell_type, 'block': s.block, 'status_effect': s.status_effect} for s in self.deck]
+            'currency': self.currency, 'dust': self.dust, 'current_tier': self.current_tier, 'bestiary_unlocked': self.bestiary_unlocked,
+            'roster': [{'name': e.name, 'bond': e.bond, 'hp': e.current_hp} for e in self.roster],
+            'team': [e.name for e in self.team]
         }
         try:
             with open(save_path, 'w') as f:
                 json.dump(data, f)
-        except Exception:
-            pass
+        except Exception: pass
 
     def load_game(self):
         app = App.get_running_app()
@@ -155,12 +106,9 @@ class PlayerState:
         save_path = os.path.join(app.user_data_dir, 'savegame.json')
         if os.path.exists(save_path):
             try:
-                with open(save_path, 'r') as f:
-                    data = json.load(f)
+                with open(save_path, 'r') as f: data = json.load(f)
                 self.currency = data.get('currency', 500)
                 self.dust = data.get('dust', 100)
-                self.hp = data.get('hp', 80)
-                self.max_hp = data.get('max_hp', 80)
                 self.current_tier = data.get('current_tier', 0)
                 self.bestiary_unlocked = data.get('bestiary_unlocked', [])
                 
@@ -169,19 +117,14 @@ class PlayerState:
                     for db_ent in DATABASE['Entities']:
                         if db_ent.name == saved_ent['name']:
                             db_ent.bond = saved_ent.get('bond', 0)
+                            db_ent.current_hp = saved_ent.get('hp', 50)
                             self.roster.append(db_ent)
                             
-                leader_name = data.get('active_leader')
-                if leader_name:
-                    self.active_leader = next((e for e in self.roster if e.name == leader_name), None)
-                    
-                self.deck = []
-                for s in data.get('deck', []):
-                    status_eff = s.get('status_effect')
-                    if status_eff: status_eff = tuple(status_eff)
-                    self.deck.append(Spell(s['name'], s['damage'], s['cost'], s['spell_type'], s.get('block', 0), status_eff, s.get('level', 1)))
-            except Exception:
-                pass
+                self.team = []
+                for t_name in data.get('team', []):
+                    ent = next((e for e in self.roster if e.name == t_name), None)
+                    if ent: self.team.append(ent)
+            except Exception: pass
 
 player = PlayerState()
 
@@ -198,27 +141,19 @@ class SplashScreen(Screen):
         super().__init__(**kwargs)
         self.layout = FloatLayout()
         
-        # Background
-        self.layout.add_widget(Image(source='assets/card_back.png', allow_stretch=True, keep_ratio=False, size_hint=(1, 1)))
+        # New Presplash background
+        bg_path = 'presplash.png' if os.path.exists('presplash.png') else 'assets/card_back.png'
+        self.layout.add_widget(Image(source=bg_path, allow_stretch=True, keep_ratio=False, size_hint=(1, 1)))
         
-        # Spinning Icon
-        self.icon = Image(source='assets/summoning_circle.png', size_hint=(None, None), size=(200, 200), pos_hint={'center_x': 0.5, 'center_y': 0.6})
-        self.layout.add_widget(self.icon)
-        
-        # Loading Text
         self.label = make_wrapped_label("Summoning the Coven...", font_size='24sp', bold=True, size_hint=(1, 0.2), height=100)
-        self.label.pos_hint = {'center_x': 0.5, 'y': 0.2}
+        self.label.pos_hint = {'center_x': 0.5, 'y': 0.1}
         self.layout.add_widget(self.label)
-        
         self.add_widget(self.layout)
 
     def on_enter(self):
-        # Pulsing and rotating animation
-        anim = Animation(opacity=0.3, duration=0.8) + Animation(opacity=1.0, duration=0.8)
+        anim = Animation(opacity=0.2, duration=0.6) + Animation(opacity=1.0, duration=0.6)
         anim.repeat = True
-        anim.start(self.icon)
-        
-        # Transition to menu after 2.5 seconds
+        anim.start(self.label)
         Clock.schedule_once(self.go_to_menu, 2.5)
 
     def go_to_menu(self, dt):
@@ -232,40 +167,19 @@ class MenuScreen(Screen):
         layout.add_widget(make_wrapped_label("URBAN LEGEND DECKBUILDER", font_size='28sp', bold=True, size_hint=(1, 0.2)))
         
         buttons = [
-            ("Enter The Hunt (Interactive Map)", self.go_to_map),
-            ("Coven & Team Building", self.go_to_team),
-            ("Arcane Dust Upgrade Shrine", self.go_to_upgrade),
-            ("The Esoteric Grimoire", self.go_to_grimoire),
+            ("Enter The Hunt (Interactive Map)", lambda x: setattr(self.manager, 'current', 'map')),
+            ("Coven & Team Building", lambda x: setattr(self.manager, 'current', 'team')),
+            ("Arcane Dust Upgrade Shrine", lambda x: setattr(self.manager, 'current', 'upgrade')),
+            ("The Esoteric Grimoire", lambda x: setattr(self.manager, 'current', 'grimoire')),
             ("3D Summoning Ritual (Gacha)", lambda x: setattr(self.manager, 'current', 'gacha')),
-            ("Hangout (Friendship)", self.go_to_hangout)
+            ("Hangout (Friendship)", lambda x: setattr(self.manager, 'current', 'hangout'))
         ]
         
-        for text, callback in buttons:
+        for text, cb in buttons:
             btn = Button(text=text, font_size='18sp', size_hint=(1, 0.13))
-            btn.bind(on_press=callback)
+            btn.bind(on_press=cb)
             layout.add_widget(btn)
-            
         self.add_widget(layout)
-
-    def go_to_map(self, instance):
-        self.manager.get_screen('map').refresh_map()
-        self.manager.current = 'map'
-
-    def go_to_team(self, instance):
-        self.manager.get_screen('team').refresh_ui()
-        self.manager.current = 'team'
-
-    def go_to_upgrade(self, instance):
-        self.manager.get_screen('upgrade').refresh_ui()
-        self.manager.current = 'upgrade'
-
-    def go_to_grimoire(self, instance):
-        self.manager.get_screen('grimoire').refresh_ui()
-        self.manager.current = 'grimoire'
-
-    def go_to_hangout(self, instance):
-        self.manager.get_screen('hangout').refresh_list()
-        self.manager.current = 'hangout'
 
 
 class MapScreen(Screen):
@@ -274,49 +188,40 @@ class MapScreen(Screen):
         self.layout = FloatLayout()
         self.add_widget(self.layout)
 
+    def on_enter(self):
+        self.refresh_map()
+
     def refresh_map(self):
         self.layout.clear_widgets()
         
-        # Background
+        # Lower Opacity Map Background
         bg_path = 'assets/map_bg.png' if os.path.exists('assets/map_bg.png') else 'assets/card_back.png'
-        bg = Image(source=bg_path, allow_stretch=True, keep_ratio=False, size_hint=(1, 1), pos_hint={'x':0, 'y':0})
+        bg = Image(source=bg_path, allow_stretch=True, keep_ratio=False, size_hint=(1, 1), pos_hint={'x':0, 'y':0}, color=(1, 1, 1, 0.4))
         self.layout.add_widget(bg)
         
-        # Top Stats Bar
         ui_box = BoxLayout(orientation='vertical', size_hint=(1, 1))
-        leader_name = player.active_leader.name if player.active_leader else "None"
-        stats_text = f"HP: {player.hp}/{player.max_hp} | Gold: {player.currency}\nLeader: {leader_name}"
-        ui_box.add_widget(make_wrapped_label(stats_text, font_size='16sp', bold=True, size_hint=(1, 0.15), color=(1,0.9,0.5,1)))
-        
-        # Empty space for map interactables
+        stats_text = f"Gold: {player.currency} | Dust: {player.dust}\nActive Coven Size: {len(player.team)}/3"
+        ui_box.add_widget(make_wrapped_label(stats_text, font_size='18sp', bold=True, size_hint=(1, 0.15), color=(1,0.9,0.5,1)))
         ui_box.add_widget(BoxLayout(size_hint=(1, 0.75)))
-        
-        # Bottom Button
         back_btn = Button(text="Return to Menu", font_size='18sp', size_hint=(1, 0.1))
         back_btn.bind(on_press=lambda x: setattr(self.manager, 'current', 'menu'))
         ui_box.add_widget(back_btn)
-        
         self.layout.add_widget(ui_box)
 
-        # Plot Glowing Orbs over the FloatLayout
         for idx, node in enumerate(player.map_nodes):
             is_active = (idx == player.current_tier)
             is_cleared = (idx < player.current_tier)
             
             orb_box = BoxLayout(orientation='vertical', size_hint=(None, None), size=(120, 100))
             orb_box.pos_hint = {'center_x': node['pos'][0], 'center_y': node['pos'][1]}
-            
             btn_color = (0.3, 0.8, 0.3, 1) if is_cleared else (0, 0.8, 1, 1) if is_active else (0.4, 0.4, 0.4, 1)
             
             orb_path = 'assets/map_node.png' if os.path.exists('assets/map_node.png') else 'atlas://data/images/defaulttheme/button'
             orb_btn = Button(background_normal=orb_path, background_color=btn_color, size_hint=(1, 0.7), disabled=not is_active)
             orb_btn.bind(on_press=lambda inst, n=node['type']: self.enter_node(n))
-            
             if is_active:
                 anim = Animation(opacity=0.4, duration=0.8) + Animation(opacity=1.0, duration=0.8)
-                anim.repeat = True
-                anim.start(orb_btn)
-                
+                anim.repeat = True; anim.start(orb_btn)
             orb_box.add_widget(orb_btn)
             
             lbl_color = (1,1,1,1) if is_active else (0.7,0.7,0.7,1)
@@ -324,6 +229,11 @@ class MapScreen(Screen):
             self.layout.add_widget(orb_box)
 
     def enter_node(self, node_type):
+        if len(player.team) == 0:
+            # Need a team to progress! Route to team builder.
+            self.manager.current = 'team'
+            return
+            
         if node_type in ["Crossroads", "Boss"]:
             self.manager.get_screen('combat').start_combat(is_boss=(node_type == "Boss"))
             self.manager.current = 'combat'
@@ -331,10 +241,107 @@ class MapScreen(Screen):
             self.manager.get_screen('shop').refresh_shop()
             self.manager.current = 'shop'
         elif node_type == "Shrine":
-            player.hp = min(player.max_hp, player.hp + 25)
+            for e in player.team: e.current_hp = min(e.max_hp, e.current_hp + 20)
             player.current_tier += 1
             player.save_game()
             self.refresh_map()
+
+
+class TeamScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        self.webview = None
+        self.web_placeholder = BoxLayout(size_hint=(1, 0.7))
+        self.layout.add_widget(self.web_placeholder)
+        
+        self.team_label = make_wrapped_label("Current Coven: None", font_size='16sp', size_hint=(1, 0.15))
+        self.layout.add_widget(self.team_label)
+        
+        back_btn = Button(text="Back to Menu", font_size='18sp', size_hint=(1, 0.15))
+        back_btn.bind(on_press=self.go_back)
+        self.layout.add_widget(back_btn)
+        self.add_widget(self.layout)
+
+    def on_enter(self):
+        self.update_team_label()
+        if platform == 'android':
+            self.load_android_webview()
+        else:
+            self.web_placeholder.clear_widgets()
+            self.web_placeholder.add_widget(make_wrapped_label("[3D Gallery Active]\nCompile to APK to view.", font_size='16sp'))
+
+    def update_team_label(self):
+        if not player.team: self.team_label.text = "Current Coven: None (Select up to 3)"
+        else: self.team_label.text = "Current Coven:\n" + ", ".join([e.name for e in player.team])
+
+    def add_to_team(self, char_name):
+        ent = next((e for e in player.roster if e.name == char_name), None)
+        if ent:
+            # Toggle logic
+            if ent in player.team:
+                player.team.remove(ent)
+            elif len(player.team) < 3:
+                player.team.append(ent)
+        player.save_game()
+        self.update_team_label()
+
+    def on_leave(self):
+        if platform == 'android' and getattr(self, 'webview', None):
+            from android.runnable import run_on_ui_thread
+            wv = self.webview; self.webview = None
+            @run_on_ui_thread
+            def remove_wv():
+                try:
+                    wv.setVisibility(8); wv.loadUrl("about:blank"); parent = wv.getParent()
+                    if parent: parent.removeView(wv)
+                    wv.destroy()
+                except Exception: pass
+            remove_wv()
+
+    def load_android_webview(self):
+        try:
+            from jnius import autoclass, PythonJavaClass, java_method
+            from android.runnable import run_on_ui_thread
+            WebView = autoclass('android.webkit.WebView')
+            WebViewClient = autoclass('android.webkit.WebViewClient')
+            activity = autoclass('org.kivy.android.PythonActivity').mActivity
+            metrics = autoclass('android.util.DisplayMetrics')()
+            activity.getWindowManager().getDefaultDisplay().getMetrics(metrics)
+
+            class CustomClient(PythonJavaClass):
+                __javainterfaces__ = ['android/webkit/WebViewClient']
+                __javacontext__ = 'app'
+                @java_method('(Landroid/webkit/WebView;Ljava/lang/String;)Z')
+                def shouldOverrideUrlLoading(self, view, url):
+                    if url.startswith("kivy://select_team"):
+                        parsed = urllib.parse.urlparse(url)
+                        char_name = urllib.parse.parse_qs(parsed.query)['name'][0]
+                        Clock.schedule_once(lambda dt: App.get_running_app().root.get_screen('team').add_to_team(char_name))
+                        return True
+                    return False
+
+            roster_data = [{"name": e.name, "img": e.image_file, "passive": e.passive_desc, "ult_name": e.ultimate_spell.name, "dmg": e.ultimate_spell.damage, "cost": e.ultimate_spell.cost, "blk": e.ultimate_spell.block, "hp": e.current_hp, "max_hp": e.max_hp} for e in player.roster]
+            json_data = json.dumps(roster_data)
+
+            @run_on_ui_thread
+            def create_webview():
+                self.webview = WebView(activity)
+                self.webview.getSettings().setJavaScriptEnabled(True)
+                self.webview.getSettings().setAllowFileAccess(True)
+                self.webview.setBackgroundColor(0)
+                self.client = CustomClient()
+                self.webview.setWebViewClient(self.client)
+                html_path = os.path.abspath(os.path.join('assets', 'gallery.html'))
+                self.webview.loadUrl(f'file://{html_path}')
+                self.webview.evaluateJavascript(f"loadGallery('{json_data}');", None)
+                params = autoclass('android.view.ViewGroup$LayoutParams')(metrics.widthPixels, int(metrics.heightPixels * 0.7))
+                activity.addContentView(self.webview, params)
+            create_webview()
+        except Exception: pass
+
+    def go_back(self, instance):
+        self.manager.current = 'menu'
 
 
 class CombatScreen(Screen):
@@ -342,8 +349,6 @@ class CombatScreen(Screen):
         super().__init__(**kwargs)
         self.layout = BoxLayout(orientation='vertical', padding=10, spacing=8)
         self.enemy = None
-        self.mana = 3
-        self.hand = []
         self.combat_log = "An enemy blocks your path!"
         self.webview = None
         
@@ -369,9 +374,8 @@ class CombatScreen(Screen):
             @run_on_ui_thread
             def remove_wv():
                 try:
-                    wv.setVisibility(8)
-                    wv.loadUrl("about:blank")
-                    parent = wv.getParent()
+                    wv.setVisibility(8); wv.loadUrl("about:blank")
+                    parent = wv.getParent(); 
                     if parent: parent.removeView(wv)
                     wv.destroy()
                 except Exception: pass
@@ -386,7 +390,7 @@ class CombatScreen(Screen):
             activity = autoclass('org.kivy.android.PythonActivity').mActivity
             metrics = autoclass('android.util.DisplayMetrics')()
             activity.getWindowManager().getDefaultDisplay().getMetrics(metrics)
-            
+
             @run_on_ui_thread
             def create_webview():
                 self.webview = WebView(activity)
@@ -404,8 +408,7 @@ class CombatScreen(Screen):
                 activity.addContentView(self.webview, params)
                 self.sync_js_state()
             create_webview()
-        except Exception as e:
-            self.web_placeholder.add_widget(make_wrapped_label(f"WebView Error: {str(e)}", font_size='14sp'))
+        except Exception: pass
 
     def start_combat(self, is_boss=False):
         if is_boss:
@@ -417,9 +420,8 @@ class CombatScreen(Screen):
             player.bestiary_unlocked.append(self.enemy.name)
 
         player.block = 0
+        player.mana = 4 if any("Lilith" in e.name for e in player.team) else 3
         self.combat_log = f"A wild {self.enemy.name} appears!"
-        self.mana = 4 if (player.active_leader and "Lilith" in player.active_leader.name) else 3
-        self.hand = random.sample(player.deck, min(3, len(player.deck)))
         self.update_ui()
         self.sync_js_state()
 
@@ -443,6 +445,7 @@ class CombatScreen(Screen):
     def update_ui(self, disable_input=False):
         self.ui_panel.clear_widgets()
         
+        # Check Win Condition
         if self.enemy.hp <= 0:
             player.currency += 120
             player.current_tier += 1
@@ -453,55 +456,63 @@ class CombatScreen(Screen):
             self.ui_panel.add_widget(back_btn)
             return
 
-        if player.hp <= 0:
-            self.ui_panel.add_widget(make_wrapped_label("YOU WERE DEFEATED...", font_size='30sp', bold=True, size_hint=(1, 0.6)))
+        # Check Loss Condition
+        alive_team = [e for e in player.team if e.current_hp > 0]
+        if not alive_team:
+            self.ui_panel.add_widget(make_wrapped_label("YOUR COVEN WAS DEFEATED...", font_size='30sp', bold=True, size_hint=(1, 0.6)))
             back_btn = Button(text="Return to Menu", font_size='20sp', size_hint=(1, 0.4))
             back_btn.bind(on_press=self.reset_run)
             self.ui_panel.add_widget(back_btn)
             return
 
-        status_text = f"Your HP: {player.hp}/{player.max_hp} (Shield: {player.block})  |  Mana: {self.mana}\nEnemy Statuses: Burn ({self.enemy.burn}) | Poison ({self.enemy.poison})"
-        self.ui_panel.add_widget(make_wrapped_label(status_text, font_size='14sp', bold=True, size_hint=(1, 0.2)))
+        # Combat Status UI
+        status_text = f"Coven Block: {player.block}  |  Mana: {player.mana}\nEnemy Statuses: Burn ({self.enemy.burn}) | Poison ({self.enemy.poison})"
+        self.ui_panel.add_widget(make_wrapped_label(status_text, font_size='14sp', bold=True, size_hint=(1, 0.15)))
 
         log_bg = BoxLayout(size_hint=(1, 0.15))
         log_bg.add_widget(make_wrapped_label(self.combat_log, font_size='15sp', color=(0.4, 0.9, 1, 1), bold=True))
         self.ui_panel.add_widget(log_bg)
 
-        cards_layout = BoxLayout(orientation='horizontal', spacing=10, size_hint=(1, 0.45))
-        for spell in self.hand:
-            btn_text = f"{spell.name}\n[{spell.spell_type}]\nDmg: {spell.damage}\nCost: {spell.cost}"
-            btn = Button(text=btn_text, font_size='14sp', halign="center", valign="middle", disabled=disable_input)
-            btn.bind(size=lambda s, w: setattr(s, 'text_size', (w[0]-10, None)))
-            btn.bind(on_press=lambda instance, s=spell, b=btn: self.cast_spell(s, b))
-            cards_layout.add_widget(btn)
+        # Team Combat Buttons
+        cards_layout = BoxLayout(orientation='horizontal', spacing=10, size_hint=(1, 0.5))
+        for entity in player.team:
+            if entity.current_hp > 0:
+                spell = entity.ultimate_spell
+                btn_text = f"{entity.name}\nHP: {entity.current_hp}/{entity.max_hp}\nCast: {spell.name}\n(Dmg:{spell.damage} Cost:{spell.cost})"
+                btn = Button(text=btn_text, font_size='12sp', halign="center", valign="middle", disabled=disable_input)
+                btn.bind(size=lambda s, w: setattr(s, 'text_size', (w[0]-10, None)))
+                btn.bind(on_press=lambda instance, e=entity, s=spell: self.cast_spell(e, s))
+                cards_layout.add_widget(btn)
+            else:
+                dead_lbl = Label(text=f"{entity.name}\n(Fallen)", color=(0.5, 0.5, 0.5, 1), font_size='14sp', halign="center", valign="middle")
+                cards_layout.add_widget(dead_lbl)
         self.ui_panel.add_widget(cards_layout)
         
         nav_row = BoxLayout(orientation='horizontal', spacing=10, size_hint=(1, 0.2))
-        flee_btn = Button(text="Retreat", font_size='18sp', disabled=disable_input)
-        flee_btn.bind(on_press=self.retreat_combat)
         end_turn_btn = Button(text="End Turn", font_size='18sp', background_color=(0.2, 0.6, 0.8, 1), disabled=disable_input)
         end_turn_btn.bind(on_press=self.enemy_turn)
-        nav_row.add_widget(flee_btn)
         nav_row.add_widget(end_turn_btn)
         self.ui_panel.add_widget(nav_row)
         
         self.sync_js_state()
 
-    def cast_spell(self, spell, btn_widget):
-        if self.mana >= spell.cost:
+    def cast_spell(self, entity, spell):
+        if player.mana >= spell.cost:
             self.trigger_js_attack("player")
-            self.mana -= spell.cost
+            player.mana -= spell.cost
             player.block += spell.block
             mult = 1.5 if spell.spell_type == self.enemy.weakness else 1.0
             dmg = int(spell.damage * mult)
             self.enemy.hp -= dmg
             
-            self.combat_log = f"Cast {spell.name} dealing {dmg} damage!"
+            self.combat_log = f"{entity.name} cast {spell.name} dealing {dmg} damage!"
             if spell.status_effect:
                 eff, val = spell.status_effect
                 if eff == "Burn": self.enemy.burn += val
                 elif eff == "Poison": self.enemy.poison += val
-            self.hand.remove(spell)
+            self.update_ui()
+        else:
+            self.combat_log = "Not enough mana!"
             self.update_ui()
 
     def enemy_turn(self, instance):
@@ -517,26 +528,24 @@ class CombatScreen(Screen):
         if self.enemy.poison > 0:
             self.enemy.hp -= self.enemy.poison
 
-        raw_damage = 12
+        raw_damage = 15
         damage_to_hp = max(0, raw_damage - player.block)
         player.block = max(0, player.block - raw_damage)
-        player.hp -= damage_to_hp
 
-        self.combat_log = f"{self.enemy.name} attacks! You take {damage_to_hp} damage.\nYour turn."
-        self.mana = 4 if (player.active_leader and "Lilith" in player.active_leader.name) else 3
-        self.hand = random.sample(player.deck, min(3, len(player.deck)))
+        alive_team = [e for e in player.team if e.current_hp > 0]
+        if alive_team:
+            target = random.choice(alive_team)
+            target.current_hp -= damage_to_hp
+            self.combat_log = f"{self.enemy.name} attacks {target.name} for {damage_to_hp} damage!\nYour turn."
+
+        player.mana = 4 if any("Lilith" in e.name for e in player.team) else 3
         self.update_ui(disable_input=False)
 
     def finish_combat(self, instance):
-        self.manager.get_screen('map').refresh_map()
-        self.manager.current = 'map'
-        
-    def retreat_combat(self, instance):
-        self.manager.get_screen('map').refresh_map()
         self.manager.current = 'map'
 
     def reset_run(self, instance):
-        player.hp = player.max_hp
+        for e in player.roster: e.current_hp = e.max_hp
         player.current_tier = 0
         player.save_game()
         self.manager.current = 'menu'
@@ -577,14 +586,11 @@ class GachaScreen(Screen):
     def on_leave(self):
         if platform == 'android' and getattr(self, 'webview', None):
             from android.runnable import run_on_ui_thread
-            wv = self.webview
-            self.webview = None
+            wv = self.webview; self.webview = None
             @run_on_ui_thread
             def remove_wv():
                 try:
-                    wv.setVisibility(8)
-                    wv.loadUrl("about:blank")
-                    parent = wv.getParent()
+                    wv.setVisibility(8); wv.loadUrl("about:blank"); parent = wv.getParent()
                     if parent: parent.removeView(wv)
                     wv.destroy()
                 except Exception: pass
@@ -627,7 +633,7 @@ class GachaScreen(Screen):
         self.summon_btn.disabled = True
         Clock.schedule_once(lambda dt: setattr(self.summon_btn, 'disabled', False), 2.5)
         
-        if random.random() < 0.4:
+        if random.random() < 0.8: # Adjusted rates to favor getting characters!
             pulled = random.choice(DATABASE["Entities"])
             ult = pulled.ultimate_spell
             if not any(e.name == pulled.name for e in player.roster):
@@ -730,45 +736,6 @@ class GrimoireScreen(Screen):
         self.layout.add_widget(back_btn)
 
 
-class TeamScreen(Screen):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.layout = BoxLayout(orientation='vertical', padding=20, spacing=15)
-        self.add_widget(self.layout)
-
-    def refresh_ui(self):
-        self.layout.clear_widgets()
-        self.layout.add_widget(make_wrapped_label("COVEN & TEAM BUILDING", font_size='24sp', bold=True, size_hint=(1, 0.12)))
-
-        active_text = f"Current Leader: {player.active_leader.name if player.active_leader else 'None'}"
-        self.layout.add_widget(make_wrapped_label(active_text, font_size='18sp', size_hint=(1, 0.1)))
-
-        scroll = ScrollView(size_hint=(1, 0.63))
-        list_layout = BoxLayout(orientation='vertical', size_hint_y=None, spacing=15)
-        list_layout.bind(minimum_height=list_layout.setter('height'))
-
-        for entity in player.roster:
-            ult = entity.ultimate_spell
-            btn_text = (f"Set {entity.name} [{entity.origin}]\nPassive: {entity.passive_desc}\n"
-                        f"Ult: {ult.name} (Dmg:{ult.damage}, Cost:{ult.cost}, Blk:{ult.block})")
-            btn = Button(text=btn_text, font_size='16sp', halign="center", valign="middle", size_hint_y=None, height=130)
-            btn.bind(size=lambda s, w: setattr(s, 'text_size', (w[0]-20, None)))
-            btn.bind(on_press=lambda inst, e=entity: self.set_leader(e))
-            list_layout.add_widget(btn)
-
-        scroll.add_widget(list_layout)
-        self.layout.add_widget(scroll)
-
-        back_btn = Button(text="Back to Menu", font_size='18sp', size_hint=(1, 0.15))
-        back_btn.bind(on_press=lambda x: setattr(self.manager, 'current', 'menu'))
-        self.layout.add_widget(back_btn)
-
-    def set_leader(self, entity):
-        player.active_leader = entity
-        player.save_game()
-        self.refresh_ui()
-
-
 class ShopScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -779,8 +746,8 @@ class ShopScreen(Screen):
         self.layout.clear_widgets()
         self.layout.add_widget(make_wrapped_label("ALCHEMIST HUT", font_size='26sp', bold=True, size_hint=(1, 0.15)))
         
-        status_text = f"Gold: {player.currency}  |  HP: {player.hp}/{player.max_hp}"
-        self.layout.add_widget(make_wrapped_label(status_text, font_size='20sp', size_hint=(1, 0.1)))
+        status_text = f"Gold: {player.currency}\nRestores 30 HP to all Coven members."
+        self.layout.add_widget(make_wrapped_label(status_text, font_size='18sp', size_hint=(1, 0.15)))
 
         btn_heal = Button(text="Buy Healing Salve (+30 HP)\n75 Gold", font_size='18sp', size_hint=(1, 0.2))
         btn_heal.bind(on_press=self.buy_heal)
@@ -797,7 +764,8 @@ class ShopScreen(Screen):
     def buy_heal(self, instance):
         if player.currency >= 75:
             player.currency -= 75
-            player.hp = min(player.max_hp, player.hp + 30)
+            for e in player.team:
+                e.current_hp = min(e.max_hp, e.current_hp + 30)
             player.save_game()
             self.refresh_shop()
 
@@ -898,7 +866,7 @@ class HangoutScreen(Screen):
 class DeckbuilderApp(App):
     def build(self):
         sm = ScreenManager()
-        sm.add_widget(SplashScreen(name='splash'))  # Loading Screen First
+        sm.add_widget(SplashScreen(name='splash'))
         sm.add_widget(MenuScreen(name='menu'))
         sm.add_widget(MapScreen(name='map'))
         sm.add_widget(TeamScreen(name='team'))
