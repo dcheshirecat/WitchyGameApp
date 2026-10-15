@@ -8,6 +8,7 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.image import Image
 from kivy.animation import Animation
 from kivy.utils import platform
+from kivy.clock import Clock
 import random
 import json
 import os
@@ -47,7 +48,6 @@ class Enemy:
         self.intents = intents
         self.lore = lore
 
-# Expanded Database with Dialogue Trees
 DATABASE = {
     "Entities": [
         Entity("Chloe (1 Star)", "Witch", 1, "Heals 3 HP on Fire spells", 
@@ -206,7 +206,6 @@ class PlayerState:
             self.current_tier = data.get('current_tier', 0)
             self.bestiary_unlocked = data.get('bestiary_unlocked', [])
             
-            # Reconstruct roster and bond levels
             self.roster = []
             for saved_ent in data.get('roster', []):
                 for db_ent in DATABASE['Entities']:
@@ -218,7 +217,6 @@ class PlayerState:
             if leader_name:
                 self.active_leader = next((e for e in self.roster if e.name == leader_name), None)
                 
-            # Reconstruct independent spell cards
             self.deck = []
             for s in data.get('deck', []):
                 status_eff = s.get('status_effect')
@@ -321,6 +319,7 @@ class MapScreen(Screen):
             tier_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=90, spacing=15)
             
             for node in tier_nodes:
+                text_col = (1, 1, 1, 1) # Default white text
                 if tier_idx < player.current_tier:
                     btn_text = f"✓ {node['label']}"
                     btn_color = (0.3, 0.7, 0.3, 1)
@@ -328,6 +327,7 @@ class MapScreen(Screen):
                 elif tier_idx == player.current_tier:
                     btn_text = f"▶ {node['label']}"
                     btn_color = (0.9, 0.6, 0.2, 1)
+                    text_col = (0, 0, 0, 1) # Black text for high contrast on orange!
                     is_disabled = False
                 else:
                     btn_text = f"🔒 {node['label']}"
@@ -336,7 +336,8 @@ class MapScreen(Screen):
 
                 btn = Button(
                     text=btn_text, font_size='16sp', bold=True,
-                    background_color=btn_color, disabled=is_disabled
+                    background_color=btn_color, disabled=is_disabled,
+                    color=text_col
                 )
                 btn.bind(on_press=lambda inst, n=node['type']: self.enter_node(n))
                 tier_box.add_widget(btn)
@@ -371,6 +372,7 @@ class CombatScreen(Screen):
         self.enemy = None
         self.mana = 3
         self.hand = []
+        self.combat_log = "An enemy blocks your path!"
         self.add_widget(self.layout)
 
     def start_combat(self, is_boss=False):
@@ -384,11 +386,12 @@ class CombatScreen(Screen):
             player.save_game()
 
         player.block = 0
+        self.combat_log = f"A wild {self.enemy.name} appears!"
         self.mana = 4 if (player.active_leader and "Lilith" in player.active_leader.name) else 3
         self.hand = random.sample(player.deck, min(3, len(player.deck)))
         self.update_ui()
 
-    def update_ui(self):
+    def update_ui(self, disable_input=False):
         self.layout.clear_widgets()
         
         if self.enemy.hp <= 0:
@@ -411,12 +414,18 @@ class CombatScreen(Screen):
         status_text = f"HP: {player.hp}/{player.max_hp} (Shield: {player.block})  |  Mana: {self.mana}\n"
         status_text += f"{self.enemy.name} HP: {self.enemy.hp}/{self.enemy.max_hp} (Weakness: {self.enemy.weakness})\n"
         status_text += f"Enemy Statuses: Burn ({self.enemy.burn}) | Poison ({self.enemy.poison})"
-        self.layout.add_widget(make_wrapped_label(status_text, font_size='16sp', bold=True, size_hint=(1, 0.25)))
+        self.layout.add_widget(make_wrapped_label(status_text, font_size='16sp', bold=True, size_hint=(1, 0.2)))
 
-        cards_layout = BoxLayout(orientation='horizontal', spacing=10, size_hint=(1, 0.55))
+        # Interactive Combat Log Box
+        log_bg = BoxLayout(size_hint=(1, 0.15))
+        log_lbl = make_wrapped_label(self.combat_log, font_size='16sp', color=(1, 0.8, 0.2, 1), bold=True)
+        log_bg.add_widget(log_lbl)
+        self.layout.add_widget(log_bg)
+
+        cards_layout = BoxLayout(orientation='horizontal', spacing=10, size_hint=(1, 0.45))
         for spell in self.hand:
             btn_text = f"{spell.name}\n(Lv {spell.level})\n[{spell.spell_type}]\nDmg: {spell.damage}\nCost: {spell.cost}"
-            btn = Button(text=btn_text, font_size='15sp', halign="center", valign="middle")
+            btn = Button(text=btn_text, font_size='15sp', halign="center", valign="middle", disabled=disable_input)
             btn.bind(size=lambda s, w: setattr(s, 'text_size', (w[0]-10, None)))
             btn.bind(on_press=lambda instance, s=spell, b=btn: self.cast_spell(s, b))
             cards_layout.add_widget(btn)
@@ -424,9 +433,9 @@ class CombatScreen(Screen):
         self.layout.add_widget(cards_layout)
         
         nav_row = BoxLayout(orientation='horizontal', spacing=10, size_hint=(1, 0.2))
-        flee_btn = Button(text="Retreat", font_size='20sp')
+        flee_btn = Button(text="Retreat", font_size='20sp', disabled=disable_input)
         flee_btn.bind(on_press=self.retreat_combat)
-        end_turn_btn = Button(text="End Turn", font_size='20sp', background_color=(0.2, 0.6, 0.8, 1))
+        end_turn_btn = Button(text="End Turn", font_size='20sp', background_color=(0.2, 0.6, 0.8, 1), disabled=disable_input)
         end_turn_btn.bind(on_press=self.enemy_turn)
         nav_row.add_widget(flee_btn)
         nav_row.add_widget(end_turn_btn)
@@ -441,7 +450,10 @@ class CombatScreen(Screen):
             self.mana -= spell.cost
             player.block += spell.block
             mult = 1.5 if spell.spell_type == self.enemy.weakness else 1.0
-            self.enemy.hp -= int(spell.damage * mult)
+            dmg_dealt = int(spell.damage * mult)
+            self.enemy.hp -= dmg_dealt
+            
+            self.combat_log = f"You cast {spell.name} for {dmg_dealt} damage!"
             
             if spell.status_effect:
                 effect_type, val = spell.status_effect
@@ -449,13 +461,23 @@ class CombatScreen(Screen):
                     self.enemy.burn += val
                 elif effect_type == "Poison":
                     self.enemy.poison += val
+                self.combat_log += f"\nApplied {val} {effect_type}."
 
             self.hand.remove(spell)
             self.update_ui()
 
     def enemy_turn(self, instance):
-        shake = (Animation(x=self.layout.x + 10, duration=0.04) + 
-                 Animation(x=self.layout.x - 10, duration=0.04) + 
+        # 1. Update log and disable buttons so the player watches the turn unfold
+        self.combat_log = f"{self.enemy.name} is preparing to attack..."
+        self.update_ui(disable_input=True)
+        
+        # 2. Schedule the actual damage 0.8 seconds later for visual pacing feedback
+        Clock.schedule_once(self.resolve_enemy_turn, 0.8)
+
+    def resolve_enemy_turn(self, dt):
+        # Visual Screen Shake on impact
+        shake = (Animation(x=self.layout.x + 15, duration=0.04) + 
+                 Animation(x=self.layout.x - 15, duration=0.04) + 
                  Animation(x=self.layout.x, duration=0.04))
         shake.start(self.layout)
 
@@ -471,9 +493,13 @@ class CombatScreen(Screen):
         player.block = max(0, player.block - raw_damage)
         player.hp -= damage_to_hp
 
+        self.combat_log = f"{self.enemy.name} attacks! You take {damage_to_hp} damage.\nYour turn."
+
         self.mana = 4 if (player.active_leader and "Lilith" in player.active_leader.name) else 3
         self.hand = random.sample(player.deck, min(3, len(player.deck)))
-        self.update_ui()
+        
+        # Re-enable inputs
+        self.update_ui(disable_input=False)
 
     def finish_combat(self, instance):
         self.manager.get_screen('map').refresh_map()
@@ -525,9 +551,27 @@ class WebScreen(Screen):
             WebViewClient = autoclass('android.webkit.WebViewClient')
             activity = PythonActivity.mActivity
 
+            # Map Python Entity names to uploaded PNG files
+            img_map = {
+                "Chloe": "chloe.png", "Sam": "sam.png", "Lilith": "lilith.png", 
+                "Puck": "puck.png", "Kelpie": "kelpie.png", "Mab": "queen_mab.png", 
+                "Ophanim": "ophanim.png", "Metatron": "metatron.png"
+            }
+            
+            leader_img = "card_back.png"
+            leader_name = "Unknown Entity"
+            
+            if player.active_leader:
+                leader_name = player.active_leader.name
+                for k, v in img_map.items():
+                    if k in leader_name:
+                        leader_img = v
+
             combat_payload = {
                 "mana": 3,
                 "enemyHp": 3000,
+                "leaderImg": leader_img,
+                "leaderName": leader_name,
                 "deck": [{"name": s.name, "dmg": s.damage} for s in player.deck]
             }
             json_data = json.dumps(combat_payload)
@@ -536,7 +580,6 @@ class WebScreen(Screen):
             def create_webview():
                 webview = WebView(activity)
                 
-                # Enable JS and Local File Access Permissions
                 settings = webview.getSettings()
                 settings.setJavaScriptEnabled(True)
                 settings.setAllowFileAccess(True)
@@ -545,7 +588,6 @@ class WebScreen(Screen):
                 
                 webview.setWebViewClient(WebViewClient())
                 
-                # Dynamically locate where Kivy extracted the index.html file on the device
                 html_path = os.path.abspath(os.path.join('assets', 'index.html'))
                 webview.loadUrl(f'file://{html_path}')
                 
