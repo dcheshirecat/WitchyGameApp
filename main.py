@@ -5,6 +5,7 @@ from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.image import Image
+from kivy.uix.progressbar import ProgressBar
 from kivy.animation import Animation
 from kivy.utils import platform
 from kivy.clock import Clock
@@ -236,7 +237,7 @@ class MenuScreen(Screen):
         layout.add_widget(make_wrapped_label("URBAN LEGEND DECKBUILDER", font_size='28sp', bold=True, size_hint=(1, 0.2)))
         
         buttons = [
-            ("Enter The Hunt (Combat Map)", self.go_to_map),
+            ("Enter The Hunt (Animated Map)", self.go_to_map),
             ("Coven & Team Building", self.go_to_team),
             ("Arcane Dust Upgrade Shrine", self.go_to_upgrade),
             ("The Esoteric Grimoire", self.go_to_grimoire),
@@ -296,6 +297,8 @@ class MapScreen(Screen):
             
             for node in tier_nodes:
                 text_col = (1, 1, 1, 1)
+                is_active_node = False
+                
                 if tier_idx < player.current_tier:
                     btn_text = f"✓ {node['label']}"
                     btn_color = (0.3, 0.7, 0.3, 1)
@@ -305,6 +308,7 @@ class MapScreen(Screen):
                     btn_color = (0.9, 0.6, 0.2, 1)
                     text_col = (0, 0, 0, 1) # High contrast text
                     is_disabled = False
+                    is_active_node = True
                 else:
                     btn_text = f"🔒 {node['label']}"
                     btn_color = (0.3, 0.3, 0.35, 1)
@@ -313,6 +317,12 @@ class MapScreen(Screen):
                 btn = Button(text=btn_text, font_size='16sp', bold=True, background_color=btn_color, disabled=is_disabled, color=text_col)
                 btn.bind(on_press=lambda inst, n=node['type']: self.enter_node(n))
                 tier_box.add_widget(btn)
+                
+                # Apply pulsing animation to active, clickable nodes
+                if is_active_node:
+                    anim = Animation(background_color=(1, 0.9, 0.4, 1), duration=0.8) + Animation(background_color=(0.9, 0.6, 0.2, 1), duration=0.8)
+                    anim.repeat = True
+                    anim.start(btn)
                 
             map_path_layout.add_widget(tier_box)
 
@@ -362,14 +372,23 @@ class CombatScreen(Screen):
             self.web_placeholder.add_widget(make_wrapped_label("[3D Combat Engine Active]\nCompiling to APK activates the transparent 3D Battle Engine here.", font_size='14sp'))
 
     def on_leave(self):
+        # Force aggressive memory cleanup to prevent stuck webviews
         if platform == 'android' and getattr(self, 'webview', None):
             from android.runnable import run_on_ui_thread
+            wv = self.webview
+            self.webview = None
+            
             @run_on_ui_thread
             def remove_wv():
-                if self.webview:
-                    parent = self.webview.getParent()
-                    if parent: parent.removeView(self.webview)
-                    self.webview = None
+                try:
+                    wv.setVisibility(8) # 8 = View.GONE
+                    wv.loadUrl("about:blank")
+                    parent = wv.getParent()
+                    if parent:
+                        parent.removeView(wv)
+                    wv.destroy()
+                except Exception as e:
+                    pass
             remove_wv()
 
     def load_android_webview(self):
@@ -407,7 +426,6 @@ class CombatScreen(Screen):
                 params = LayoutParams(w, int(h * 0.45))
                 activity.addContentView(self.webview, params)
                 
-                # Push initial combat state
                 self.sync_js_state()
 
             create_webview()
@@ -482,6 +500,9 @@ class CombatScreen(Screen):
         self.ui_panel.add_widget(log_bg)
 
         cards_layout = BoxLayout(orientation='horizontal', spacing=10, size_hint=(1, 0.45))
+        
+        # Display the active Leader's Ultimate Spell as a playable card if they have one and bond is high enough!
+        # For simplicity, if bond >= 100 it's already in the deck, but standard deck rendering handles it.
         for spell in self.hand:
             btn_text = f"{spell.name}\n[{spell.spell_type}]\nDmg: {spell.damage}\nCost: {spell.cost}"
             btn = Button(text=btn_text, font_size='14sp', halign="center", valign="middle", disabled=disable_input)
@@ -595,12 +616,19 @@ class GachaScreen(Screen):
     def on_leave(self):
         if platform == 'android' and getattr(self, 'webview', None):
             from android.runnable import run_on_ui_thread
+            wv = self.webview
+            self.webview = None
+            
             @run_on_ui_thread
             def remove_wv():
-                if self.webview:
-                    parent = self.webview.getParent()
-                    if parent: parent.removeView(self.webview)
-                    self.webview = None
+                try:
+                    wv.setVisibility(8) # 8 = View.GONE
+                    wv.loadUrl("about:blank")
+                    parent = wv.getParent()
+                    if parent: parent.removeView(wv)
+                    wv.destroy()
+                except Exception as e:
+                    pass
             remove_wv()
 
     def load_android_webview(self):
