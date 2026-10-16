@@ -15,13 +15,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Allocate Swap Memory
+      - name: Free Disk Space & Add Swap Memory
         run: |
-          # Use a unique name and fallback to dd if fallocate fails
-          sudo fallocate -l 8G /swapfile-extra || sudo dd if=/dev/zero of=/swapfile-extra bs=1M count=8192
+          # Free up ~20GB of disk space by deleting heavy unused GitHub software
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          
+          # Create a safer 4GB Swap file so we don't hit 100% disk usage
+          sudo fallocate -l 4G /swapfile-extra || sudo dd if=/dev/zero of=/swapfile-extra bs=1M count=4096
           sudo chmod 600 /swapfile-extra
           sudo mkswap /swapfile-extra
           sudo swapon /swapfile-extra
+          
+          # Verify the new available space and memory
+          df -h
           free -m
 
       - name: Set up Python
