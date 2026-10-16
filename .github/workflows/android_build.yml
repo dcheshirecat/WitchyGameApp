@@ -26,21 +26,24 @@ jobs:
           sudo apt-get install -y build-essential git python3-dev ffmpeg libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev libffi-dev libssl-dev zip unzip autoconf libtool pkg-config openjdk-17-jdk
 
       - name: Install Buildozer and Cython
-        # Pinning Cython to <3.0 prevents a major known Kivy compilation crash
         run: |
           pip install --upgrade pip
           pip install buildozer "Cython<3.0" virtualenv
 
       - name: Build APK with Buildozer
-        run: buildozer android debug
+        # The 2>&1 | tee command captures both standard output and errors into build_log.txt
+        run: buildozer android debug 2>&1 | tee build_log.txt
 
-      - name: 🚨 PRINT EXACT ERROR 🚨
+      - name: Downloadable Crash Logs
         if: failure()
-        run: |
-          echo "========================================"
-          echo "BUILD FAILED! FETCHING LOGS:"
-          echo "========================================"
-          cat .buildozer/android/platform/build-arm64-v8a/dists/*/logs/* || echo "No specific log file found. Please scroll up and check the 'Build APK with Buildozer' step output."
+        uses: actions/upload-artifact@v4
+        with:
+          name: Buildozer-Crash-Logs
+          # This grabs our custom log and any internal Buildozer logs that might exist
+          path: |
+            build_log.txt
+            .buildozer/**/*.txt
+            .buildozer/**/*.log
 
       - name: Upload APK Artifact
         if: success()
