@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { margin: 0; padding: 0; background: transparent; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: serif; perspective: 1500px; color: #333; }
+    .book { width: 90vw; height: 80vh; position: relative; transform-style: preserve-3d; }
+    .page { width: 50%; height: 100%; position: absolute; right: 0; transform-origin: left center; transform-style: preserve-3d; transition: transform 0.8s cubic-bezier(0.4, 0.0, 0.2, 1); cursor: pointer; background: #e0d5b7; border: 1px solid #c2b59b; box-shadow: inset 0 0 30px rgba(0,0,0,0.3), 0 5px 15px rgba(0,0,0,0.5); border-radius: 0 10px 10px 0; }
+    .page.turned { transform: rotateY(-180deg); }
+    .page-front, .page-back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; padding: 1.5rem; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; }
+    .page-back { transform: rotateY(180deg); background: #dbd0b1; border-radius: 10px 0 0 10px; }
+    h2 { margin: 0 0 10px 0; font-size: 1.2rem; border-bottom: 2px solid #555; padding-bottom: 5px; text-transform: uppercase; }
+    p { font-size: 0.9rem; line-height: 1.4; font-style: italic; }
+    .spell-art { width: 100%; height: 120px; object-fit: cover; border: 2px solid #555; margin-bottom: 10px; filter: sepia(0.6) contrast(1.2); }
+    .stats { font-family: sans-serif; font-size: 0.8rem; font-weight: bold; color: #550000; margin-top: auto; }
+  </style>
+</head>
+<body>
+  <div class="book" id="book-container"></div>
+  <script>
+    function loadGrimoire(dataJson) {
+      const data = JSON.parse(dataJson);
+      const container = document.getElementById('book-container');
+      container.innerHTML = '';
+      
+      let zIndex = data.length;
+      data.forEach((entry, index) => {
+        const page = document.createElement('div');
+        page.className = 'page';
+        page.style.zIndex = zIndex--;
+        
+        // Click to turn logic
+        page.onclick = function() {
+          if (this.classList.contains('turned')) {
+            this.classList.remove('turned');
+            this.style.zIndex = zIndex + data.length; 
+          } else {
+            this.classList.add('turned');
+            this.style.zIndex = index;
+          }
+        };
+
+        page.innerHTML = `
+          <div class="page-front">
+            <h2>${entry.name}</h2>
+            ${entry.img ? `<img src="${entry.img}" class="spell-art" onerror="this.style.display='none'">` : ''}
+            <p>${entry.lore}</p>
+            <div class="stats">${entry.stats || ''}</div>
+          </div>
+          <div class="page-back">
+            <!-- Back of page is intentionally blank/textured for realistic turning -->
+            <div style="width:100%; height:100%; border:1px solid #c2b59b; opacity:0.3;"></div>
+          </div>
+        `;
+        container.appendChild(page);
+      });
+    }
+  </script>
+</body>
+</html>
