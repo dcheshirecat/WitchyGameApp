@@ -1,124 +1,66 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>3D Combat Animation Engine</title>
   <style>
-    body {
-      margin: 0; 
-      padding: 0;
-      background-color: transparent; 
-      display: flex; 
-      flex-direction: column;
-      justify-content: center; 
-      align-items: center; 
-      height: 100vh;
-      overflow: hidden;
-      font-family: sans-serif;
-    }
+    body { margin: 0; padding: 0; background-color: transparent; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; }
+    .monster-container { position: relative; width: 260px; height: 260px; display: flex; flex-direction: column; align-items: center; transition: transform 0.2s ease-out; }
+    #enemy-img { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; border: 3px solid #ff3333; box-shadow: 0 10px 25px rgba(0,0,0,0.8); transition: filter 0.1s; }
+    .hp-container { width: 100%; height: 20px; background: #333; border: 2px solid #000; border-radius: 10px; margin-top: 15px; overflow: hidden; }
+    #hp-fill { height: 100%; background: linear-gradient(90deg, #ff0000, #ff6666); width: 100%; transition: width 0.3s ease-in-out; }
+    .hp-text { position: absolute; bottom: -35px; color: white; font-weight: bold; text-shadow: 1px 1px 3px black; font-size: 1.1rem; }
     
-    .monster-container {
-      position: relative;
-      width: 260px;
-      height: 260px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      transition: transform 0.2s ease-out;
-    }
-    
-    #enemy-img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      border-radius: 12px;
-      border: 3px solid #ff3333;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.8);
-      transition: filter 0.1s;
-    }
-
-    /* Health Bar */
-    .hp-container {
-      width: 100%;
-      height: 20px;
-      background: #333;
-      border: 2px solid #000;
-      border-radius: 10px;
-      margin-top: 15px;
-      overflow: hidden;
-    }
-
-    #hp-fill {
-      height: 100%;
-      background: linear-gradient(90deg, #ff0000, #ff6666);
-      width: 100%;
-      transition: width 0.3s ease-in-out;
-    }
-
-    .hp-text {
-      position: absolute;
-      bottom: -35px;
-      color: white;
-      font-weight: bold;
-      text-shadow: 1px 1px 3px black;
-      font-size: 1.1rem;
-    }
-
-    /* Animations */
-    @keyframes playerAttack {
-      0% { transform: scale(1); filter: brightness(1) sepia(0) hue-rotate(0deg) saturate(1); }
-      50% { transform: scale(0.9) rotate(-3deg); filter: brightness(2) sepia(1) hue-rotate(-50deg) saturate(5); }
-      100% { transform: scale(1); filter: brightness(1) sepia(0) hue-rotate(0deg) saturate(1); }
-    }
-
-    @keyframes enemyAttack {
-      0% { transform: scale(1) translateY(0); }
-      30% { transform: scale(1.1) translateY(30px); }
-      100% { transform: scale(1) translateY(0); }
-    }
-
+    /* VFX Animations */
+    @keyframes playerAttack { 0% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(0.9) rotate(-3deg); filter: brightness(2) sepia(1) hue-rotate(-50deg) saturate(5); } 100% { transform: scale(1); filter: brightness(1); } }
+    @keyframes enemyAttack { 0% { transform: scale(1) translateY(0); } 30% { transform: scale(1.1) translateY(30px); } 100% { transform: scale(1) translateY(0); } }
     .anim-player-hit { animation: playerAttack 0.3s ease-out; }
     .anim-enemy-lunge { animation: enemyAttack 0.4s ease-in-out; }
 
+    /* Floating Text CSS */
+    .floating-text { position: absolute; font-size: 2rem; font-weight: bold; text-shadow: 2px 2px 4px #000; pointer-events: none; z-index: 10; animation: floatUp 1s cubic-bezier(0.2, 1, 0.3, 1) forwards; }
+    @keyframes floatUp { 0% { transform: translateY(0) scale(0.5); opacity: 1; } 50% { transform: translateY(-40px) scale(1.2); opacity: 1; } 100% { transform: translateY(-80px) scale(1); opacity: 0; } }
   </style>
 </head>
 <body>
-  
   <div class="monster-container" id="monster-container">
     <img id="enemy-img" src="card_back.png" alt="Enemy">
-    <div class="hp-container">
-      <div id="hp-fill"></div>
-    </div>
+    <div class="hp-container"><div id="hp-fill"></div></div>
     <div class="hp-text" id="hp-text">Loading...</div>
   </div>
 
   <script>
-    // Called remotely by Python/PyJNIus!
     function updateCombatState(payload) {
       if (payload) {
         document.getElementById('enemy-img').src = payload.enemyImg;
-        
-        let hpPercent = (payload.enemyHp / payload.enemyMaxHp) * 100;
-        if (hpPercent < 0) hpPercent = 0;
-        
+        let hpPercent = Math.max(0, (payload.enemyHp / payload.enemyMaxHp) * 100);
         document.getElementById('hp-fill').style.width = hpPercent + "%";
         document.getElementById('hp-text').textContent = `${payload.enemyName} (${payload.enemyHp}/${payload.enemyMaxHp})`;
       }
     }
 
     function playAttackAnim(attacker) {
-      const container = document.getElementById('monster-container');
       const img = document.getElementById('enemy-img');
-      
       img.classList.remove('anim-player-hit', 'anim-enemy-lunge');
-      void img.offsetWidth; // Trigger DOM reflow
+      void img.offsetWidth; 
+      if (attacker === "player") img.classList.add('anim-player-hit');
+      else if (attacker === "enemy") img.classList.add('anim-enemy-lunge');
+    }
+
+    function showFloatingText(text, color) {
+      const floater = document.createElement('div');
+      floater.className = 'floating-text';
+      floater.innerText = text;
+      floater.style.color = color;
       
-      if (attacker === "player") {
-        img.classList.add('anim-player-hit');
-      } else if (attacker === "enemy") {
-        img.classList.add('anim-enemy-lunge');
-      }
+      // Randomize position slightly around the center
+      const offsetX = (Math.random() - 0.5) * 60;
+      floater.style.left = `calc(50% + ${offsetX}px)`;
+      floater.style.top = '40%';
+      
+      document.body.appendChild(floater);
+      setTimeout(() => floater.remove(), 1000);
     }
   </script>
 </body>
