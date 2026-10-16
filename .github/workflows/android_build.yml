@@ -40,8 +40,9 @@ jobs:
           pip install buildozer "Cython<3.0" virtualenv
 
       - name: Force Stable P4A Branch
-        # Bypasses the libjxl crash by forcing the previous stable compiler branch
-        run: echo "p4a.branch = release-2024.01.21" >> buildozer.spec
+        run: |
+          # Finds the exact p4a.branch line (even if commented out) and overwrites it with the stable release
+          sed -i -e 's/^#* *p4a.branch.*/p4a.branch = release-2024.01.21/' buildozer.spec
 
       - name: Build APK with Buildozer
         run: |
