@@ -31,13 +31,15 @@ jobs:
           pip install buildozer "Cython<3.0" virtualenv
 
       - name: Build APK with Buildozer
-        run: buildozer android debug 2>&1 | tee build_log.txt
+        # 'set -o pipefail' ensures the step fails if buildozer crashes, even when piped to tee
+        run: |
+          set -o pipefail
+          buildozer android debug 2>&1 | tee build_log.txt
 
       - name: Isolate Single APK
         if: success()
         run: |
           mkdir -p final_apk
-          # Safely find the primary arm64 APK and copy it as WitchyGame.apk
           APK_FILE=$(ls bin/*arm64-v8a*.apk | head -n 1)
           cp "$APK_FILE" final_apk/WitchyGame.apk
 
