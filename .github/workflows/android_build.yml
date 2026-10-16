@@ -37,14 +37,15 @@ jobs:
         if: success()
         run: |
           mkdir -p final_apk
-          find bin/ -name "*arm64-v8a*.apk" -exec cp {} final_apk/ \;
+          # Grabs the very first .apk file it finds and cleanly renames it
+          find bin/ -name "*.apk" | head -n 1 | xargs -I {} cp {} final_apk/WitchyGame.apk
 
       - name: Upload APK Artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: WitchyGame-APK
-          path: final_apk/
+          path: final_apk/WitchyGame.apk
 
       - name: Downloadable Crash Logs
         if: failure()
