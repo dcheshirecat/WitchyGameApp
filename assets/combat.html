@@ -3,60 +3,108 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>3D Combat Animation Engine</title>
+  <title>Full RPG Combat Engine</title>
   <style>
-    body { margin: 0; padding: 0; background-color: transparent; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: sans-serif; }
-    .monster-container { position: relative; width: 260px; height: 260px; display: flex; flex-direction: column; align-items: center; transition: transform 0.2s ease-out; }
-    #enemy-img { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; border: 3px solid #ff3333; box-shadow: 0 10px 25px rgba(0,0,0,0.8); transition: filter 0.1s; }
-    .hp-container { width: 100%; height: 20px; background: #333; border: 2px solid #000; border-radius: 10px; margin-top: 15px; overflow: hidden; }
-    #hp-fill { height: 100%; background: linear-gradient(90deg, #ff0000, #ff6666); width: 100%; transition: width 0.3s ease-in-out; }
-    .hp-text { position: absolute; bottom: -35px; color: white; font-weight: bold; text-shadow: 1px 1px 3px black; font-size: 1.1rem; }
+    body { margin: 0; padding: 0; background-color: transparent; height: 100vh; overflow: hidden; font-family: sans-serif; }
+    .arena { display: flex; justify-content: space-between; align-items: center; width: 100%; height: 100%; padding: 0 5%; box-sizing: border-box; }
     
-    /* VFX Animations */
-    @keyframes playerAttack { 0% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(0.9) rotate(-3deg); filter: brightness(2) sepia(1) hue-rotate(-50deg) saturate(5); } 100% { transform: scale(1); filter: brightness(1); } }
-    @keyframes enemyAttack { 0% { transform: scale(1) translateY(0); } 30% { transform: scale(1.1) translateY(30px); } 100% { transform: scale(1) translateY(0); } }
-    .anim-player-hit { animation: playerAttack 0.3s ease-out; }
-    .anim-enemy-lunge { animation: enemyAttack 0.4s ease-in-out; }
+    .team-container { display: flex; flex-direction: column; gap: 10px; width: 30%; }
+    .hero-box { position: relative; display: flex; align-items: center; gap: 10px; transition: transform 0.3s ease-out; }
+    .hero-img { width: 60px; height: 60px; object-fit: cover; border-radius: 50%; border: 2px solid #00e5ff; box-shadow: 0 4px 10px rgba(0,0,0,0.8); background: #15131d; }
+    .hero-hp-bar { width: 80px; height: 8px; background: #333; border-radius: 4px; overflow: hidden; }
+    .hero-hp-fill { height: 100%; background: #00e5ff; width: 100%; transition: width 0.3s; }
+    
+    .enemy-container { position: relative; width: 40%; display: flex; flex-direction: column; align-items: center; transition: transform 0.3s ease-out; }
+    .enemy-img { width: 150px; height: 150px; object-fit: cover; border-radius: 12px; border: 3px solid #ff3333; box-shadow: 0 10px 25px rgba(0,0,0,0.8); background: #15131d; }
+    .enemy-hp-bar { width: 100%; height: 12px; background: #333; border-radius: 6px; margin-top: 10px; overflow: hidden; border: 1px solid #000; }
+    .enemy-hp-fill { height: 100%; background: linear-gradient(90deg, #ff0000, #ff6666); width: 100%; transition: width 0.3s; }
+    .enemy-name { color: white; font-weight: bold; margin-top: 5px; text-shadow: 1px 1px 3px black; font-size: 0.9rem; }
 
-    /* Floating Text CSS */
-    .floating-text { position: absolute; font-size: 2rem; font-weight: bold; text-shadow: 2px 2px 4px #000; pointer-events: none; z-index: 10; animation: floatUp 1s cubic-bezier(0.2, 1, 0.3, 1) forwards; }
-    @keyframes floatUp { 0% { transform: translateY(0) scale(0.5); opacity: 1; } 50% { transform: translateY(-40px) scale(1.2); opacity: 1; } 100% { transform: translateY(-80px) scale(1); opacity: 0; } }
+    /* Animations */
+    @keyframes heroDash { 0% { transform: translateX(0); } 50% { transform: translateX(100px) scale(1.1); z-index: 10; } 100% { transform: translateX(0); } }
+    @keyframes enemyDash { 0% { transform: translateX(0); } 50% { transform: translateX(-100px) scale(1.1); z-index: 10; } 100% { transform: translateX(0); } }
+    @keyframes takeDamage { 0% { filter: brightness(1); transform: translateX(0); } 25% { filter: brightness(2) hue-rotate(-50deg); transform: translateX(-5px); } 50% { transform: translateX(5px); } 75% { transform: translateX(-5px); } 100% { filter: brightness(1); transform: translateX(0); } }
+    
+    .anim-hero-dash { animation: heroDash 0.4s ease-in-out; }
+    .anim-enemy-dash { animation: enemyDash 0.5s ease-in-out; }
+    .anim-damage { animation: takeDamage 0.3s ease-out; }
+
+    .floating-text { position: absolute; font-size: 1.5rem; font-weight: bold; text-shadow: 2px 2px 4px #000; pointer-events: none; z-index: 20; animation: floatUp 1s cubic-bezier(0.2, 1, 0.3, 1) forwards; }
+    @keyframes floatUp { 0% { transform: translateY(0) scale(0.5); opacity: 1; } 50% { transform: translateY(-30px) scale(1.2); opacity: 1; } 100% { transform: translateY(-60px) scale(1); opacity: 0; } }
   </style>
 </head>
 <body>
-  <div class="monster-container" id="monster-container">
-    <img id="enemy-img" src="card_back.png" alt="Enemy">
-    <div class="hp-container"><div id="hp-fill"></div></div>
-    <div class="hp-text" id="hp-text">Loading...</div>
+  <div class="arena">
+    <div class="team-container" id="team-container"></div>
+    
+    <div class="enemy-container" id="enemy-container">
+      <img class="enemy-img" id="enemy-img" src="card_back.png" alt="Enemy">
+      <div class="enemy-hp-bar"><div class="enemy-hp-fill" id="enemy-hp-fill"></div></div>
+      <div class="enemy-name" id="enemy-name">Loading...</div>
+    </div>
   </div>
 
   <script>
     function updateCombatState(payload) {
-      if (payload) {
-        document.getElementById('enemy-img').src = payload.enemyImg;
-        let hpPercent = Math.max(0, (payload.enemyHp / payload.enemyMaxHp) * 100);
-        document.getElementById('hp-fill').style.width = hpPercent + "%";
-        document.getElementById('hp-text').textContent = `${payload.enemyName} (${payload.enemyHp}/${payload.enemyMaxHp})`;
+      if (!payload) return;
+      
+      // Update Enemy
+      document.getElementById('enemy-img').src = payload.enemyImg;
+      document.getElementById('enemy-name').textContent = `${payload.enemyName} (${payload.enemyHp}/${payload.enemyMaxHp})`;
+      let eHp = Math.max(0, (payload.enemyHp / payload.enemyMaxHp) * 100);
+      document.getElementById('enemy-hp-fill').style.width = eHp + "%";
+
+      // Update Team
+      const tc = document.getElementById('team-container');
+      tc.innerHTML = '';
+      payload.team.forEach((hero, index) => {
+        let hHp = Math.max(0, (hero.hp / hero.maxHp) * 100);
+        let opacity = hero.hp > 0 ? 1 : 0.3;
+        tc.innerHTML += `
+          <div class="hero-box" id="hero-${index}" style="opacity: ${opacity}">
+            <img class="hero-img" src="${hero.img}" onerror="this.src='card_back.png'">
+            <div>
+              <div style="color:white; font-size:0.7rem; font-weight:bold; text-shadow:1px 1px 2px #000;">${hero.name}</div>
+              <div class="hero-hp-bar"><div class="hero-hp-fill" style="width:${hHp}%"></div></div>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    function playAttackAnim(type, heroIndex = 0) {
+      const enemyImg = document.getElementById('enemy-img');
+      const enemyCont = document.getElementById('enemy-container');
+      
+      if (type === "player") {
+        const heroBox = document.getElementById(`hero-${heroIndex}`);
+        if (heroBox) {
+          heroBox.classList.remove('anim-hero-dash');
+          void heroBox.offsetWidth;
+          heroBox.classList.add('anim-hero-dash');
+        }
+        enemyImg.classList.remove('anim-damage');
+        void enemyImg.offsetWidth;
+        setTimeout(() => enemyImg.classList.add('anim-damage'), 200);
+      } else if (type === "enemy") {
+        enemyCont.classList.remove('anim-enemy-dash');
+        void enemyCont.offsetWidth;
+        enemyCont.classList.add('anim-enemy-dash');
       }
     }
 
-    function playAttackAnim(attacker) {
-      const img = document.getElementById('enemy-img');
-      img.classList.remove('anim-player-hit', 'anim-enemy-lunge');
-      void img.offsetWidth; 
-      if (attacker === "player") img.classList.add('anim-player-hit');
-      else if (attacker === "enemy") img.classList.add('anim-enemy-lunge');
-    }
-
-    function showFloatingText(text, color) {
+    function showFloatingText(text, color, target = "enemy") {
       const floater = document.createElement('div');
       floater.className = 'floating-text';
       floater.innerText = text;
       floater.style.color = color;
       
-      // Randomize position slightly around the center
-      const offsetX = (Math.random() - 0.5) * 60;
-      floater.style.left = `calc(50% + ${offsetX}px)`;
+      let xOffset = (Math.random() - 0.5) * 40;
+      if (target === "enemy") {
+        floater.style.right = `calc(20% + ${xOffset}px)`;
+      } else {
+        floater.style.left = `calc(20% + ${xOffset}px)`;
+      }
       floater.style.top = '40%';
       
       document.body.appendChild(floater);
