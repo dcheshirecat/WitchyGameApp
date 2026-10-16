@@ -31,23 +31,27 @@ jobs:
           pip install buildozer "Cython<3.0" virtualenv
 
       - name: Build APK with Buildozer
-        # The 2>&1 | tee command captures both standard output and errors into build_log.txt
         run: buildozer android debug 2>&1 | tee build_log.txt
 
-      - name: Downloadable Crash Logs
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Buildozer-Crash-Logs
-          # This grabs our custom log and any internal Buildozer logs that might exist
-          path: |
-            build_log.txt
-            .buildozer/**/*.txt
-            .buildozer/**/*.log
+      - name: Isolate Single APK
+        if: success()
+        run: |
+          mkdir -p final_apk
+          find bin/ -name "*arm64-v8a*.apk" -exec cp {} final_apk/ \;
 
       - name: Upload APK Artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: WitchyGame-APK
-          path: bin/*arm64-v8a-debug.apk
+          path: final_apk/
+
+      - name: Downloadable Crash Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Buildozer-Crash-Logs
+          path: |
+            build_log.txt
+            .buildozer/**/*.txt
+            .buildozer/**/*.log
