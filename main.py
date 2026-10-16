@@ -8,13 +8,15 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.image import Image
 from kivy.uix.behaviors import ButtonBehavior
 from kivy.uix.carousel import Carousel
+from kivy.uix.widget import Widget
 from kivy.animation import Animation
 from kivy.utils import platform
 from kivy.clock import Clock
-from kivy.graphics import Color, Rectangle, Line
+from kivy.graphics import Color, Rectangle, Line, RenderContext
 import random
 import json
 import os
+import sqlite3
 
 class ImageButton(ButtonBehavior, Image): pass
 
@@ -36,6 +38,44 @@ class TrailWidget(BoxLayout):
         pts = []
         for n in self.nodes: pts.extend([self.x + self.width * n['pos'][0], self.y + self.height * n['pos'][1]])
         self.line.points = pts
+
+# --- GLSL MAGIC FOG SHADER ---
+fs_magic_fog = '''
+#ifdef GL_ES
+precision highp float;
+#endif
+$HEADER$
+uniform float time;
+uniform vec2 resolution;
+
+void main(void) {
+    vec2 uv = gl_FragCoord.xy / resolution.xy;
+    // Calculate overlapping animated sine waves for a misty effect
+    float wave = sin(uv.x * 5.0 + time * 0.8) * 0.05 + sin(uv.y * 3.0 - time * 0.5) * 0.05;
+    // Base cyan color combined with the wave
+    gl_FragColor = vec4(0.0, 0.8, 0.9, 0.15 + wave);
+}
+'''
+
+class MagicFogOverlay(Widget):
+    def __init__(self, **kwargs):
+        self.canvas = RenderContext(use_parent_modelview=True, use_parent_projection=True)
+        self.canvas.shader.fs = fs_magic_fog
+        with self.canvas:
+            self.rect = Rectangle(size=self.size, pos=self.pos)
+        super().__init__(**kwargs)
+        Clock.schedule_interval(self.update_glsl, 1/60.0)
+
+    def on_size(self, *args):
+        self.rect.size = self.size
+        self.canvas['resolution'] = [float(self.width), float(self.height)]
+
+    def on_pos(self, *args):
+        self.rect.pos = self.pos
+
+    def update_glsl(self, dt):
+        self.canvas['time'] = Clock.get_boottime()
+
 
 # --- Core Data Structures ---
 
@@ -67,6 +107,7 @@ DATABASE = {
     ]
 }
 
+# --- SQLITE ARCHITECTURE ---
 class PlayerState:
     def __init__(self):
         self.currency = 500; self.dust = 100; self.roster = []; self.team = []; self.bestiary_unlocked = []; self.current_tier = 0
@@ -78,33 +119,76 @@ class PlayerState:
             {"id": 3, "type": "Boss", "label": "The Fog", "pos": (0.5, 0.85)}
         ]
 
-    def save_game(self):
+    def _get_db_path(self):
         app = App.get_running_app()
-        if not app: return
-        data = {'currency': self.currency, 'dust': self.dust, 'current_tier': self.current_tier, 'bestiary_unlocked': self.bestiary_unlocked, 'roster': [{'name': e.name, 'bond': e.bond, 'hp': e.current_hp} for e in self.roster], 'team': [e.name for e in self.team], 'global_deck': [{'name': s.name, 'level': s.level, 'damage': s.damage, 'cost': s.cost, 'spell_type': s.spell_type, 'block': s.block, 'status_effect': s.status_effect, 'exhaust': s.exhaust} for s in self.global_deck]}
-        try:
-            with open(os.path.join(app.user_data_dir, 'savegame.json'), 'w') as f: json.dump(data, f)
-        except Exception: pass
+        if not app: return 'savegame.db'
+        return os.path.join(app.user_data_dir, 'savegame.db')
+
+    def init_db(self):
+        with sqlite3.connect(self._get_db_path()) as conn:
+            c = conn.cursor()
+            c.execute('CREATE TABLE IF NOT EXISTS state (id INTEGER PRIMARY KEY, currency INT, dust INT, current_tier INT)')
+            c.execute('CREATE TABLE IF NOT EXISTS roster (name TEXT PRIMARY KEY, bond INT, hp INT, in_team INT)')
+            c.execute('CREATE TABLE IF NOT EXISTS deck (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)')
+            c.execute('CREATE TABLE IF NOT EXISTS bestiary (name TEXT PRIMARY KEY)')
+            
+            c.execute('SELECT count(*) FROM state')
+            if c.fetchone()[0] == 0:
+                c.execute('INSERT INTO state (id, currency, dust, current_tier) VALUES (1, 500, 100, 0)')
+                c.execute('INSERT INTO deck (name) VALUES ("Basic Strike")')
+                c.execute('INSERT INTO deck (name) VALUES ("Basic Strike")')
+            conn.commit()
+
+    def save_game(self):
+        with sqlite3.connect(self._get_db_path()) as conn:
+            c = conn.cursor()
+            c.execute('UPDATE state SET currency=?, dust=?, current_tier=? WHERE id=1', (self.currency, self.dust, self.current_tier))
+            
+            c.execute('DELETE FROM roster')
+            for ent in self.roster:
+                in_team = 1 if ent in self.team else 0
+                c.execute('INSERT INTO roster (name, bond, hp, in_team) VALUES (?, ?, ?, ?)', (ent.name, ent.bond, ent.current_hp, in_team))
+                
+            c.execute('DELETE FROM deck')
+            for spell in self.global_deck:
+                c.execute('INSERT INTO deck (name) VALUES (?)', (spell.name,))
+                
+            c.execute('DELETE FROM bestiary')
+            for b in self.bestiary_unlocked:
+                c.execute('INSERT INTO bestiary (name) VALUES (?)', (b,))
+            conn.commit()
 
     def load_game(self):
-        app = App.get_running_app()
-        if not app: return
-        path = os.path.join(app.user_data_dir, 'savegame.json')
-        if os.path.exists(path):
-            try:
-                with open(path, 'r') as f: data = json.load(f)
-                self.currency = data.get('currency', 500); self.dust = data.get('dust', 100); self.current_tier = data.get('current_tier', 0); self.bestiary_unlocked = data.get('bestiary_unlocked', [])
-                self.roster = []
-                for saved_ent in data.get('roster', []):
-                    for db_ent in DATABASE['Entities']:
-                        if db_ent.name == saved_ent['name']:
-                            db_ent.bond = saved_ent.get('bond', 0); db_ent.current_hp = saved_ent.get('hp', 60); self.roster.append(db_ent)
-                self.team = [next((e for e in self.roster if e.name == t_name), None) for t_name in data.get('team', []) if next((e for e in self.roster if e.name == t_name), None)]
-                self.global_deck = []
-                for s in data.get('global_deck', []):
-                    eff = tuple(s['status_effect']) if s.get('status_effect') else None
-                    self.global_deck.append(Spell(s['name'], s['damage'], s['cost'], s['spell_type'], s.get('block', 0), eff, s.get('level', 1), s.get('exhaust', False)))
-            except Exception: pass
+        self.init_db()
+        with sqlite3.connect(self._get_db_path()) as conn:
+            c = conn.cursor()
+            c.execute('SELECT currency, dust, current_tier FROM state WHERE id=1')
+            row = c.fetchone()
+            if row:
+                self.currency, self.dust, self.current_tier = row
+            
+            self.roster = []; self.team = []
+            c.execute('SELECT name, bond, hp, in_team FROM roster')
+            for r_name, r_bond, r_hp, r_in_team in c.fetchall():
+                db_ent = next((e for e in DATABASE['Entities'] if e.name == r_name), None)
+                if db_ent:
+                    db_ent.bond = r_bond; db_ent.current_hp = r_hp
+                    self.roster.append(db_ent)
+                    if r_in_team == 1: self.team.append(db_ent)
+
+            self.global_deck = []
+            c.execute('SELECT name FROM deck')
+            for (d_name,) in c.fetchall():
+                db_spell = next((s for s in DATABASE['GlobalSpells'] if s.name == d_name), None)
+                if db_spell: self.global_deck.append(db_spell)
+                else: 
+                    for ent in DATABASE['Entities']:
+                        if ent.ultimate_spell.name == d_name: self.global_deck.append(ent.ultimate_spell); break
+            
+            self.bestiary_unlocked = []
+            c.execute('SELECT name FROM bestiary')
+            for (b_name,) in c.fetchall():
+                self.bestiary_unlocked.append(b_name)
 
 player = PlayerState()
 
@@ -160,15 +244,10 @@ class StoryScreen(Screen):
         self.continue_btn.bind(on_press=self.finish_story)
         self.layout.add_widget(self.continue_btn)
         self.add_widget(self.layout)
-        self.full_text = ""
-        self.current_idx = 0
-        self.next_node_type = ""
+        self.full_text = ""; self.current_idx = 0; self.next_node_type = ""
 
     def load_story(self, text, next_node):
-        self.full_text = text
-        self.next_node_type = next_node
-        self.text_label.text = ""
-        self.current_idx = 0
+        self.full_text = text; self.next_node_type = next_node; self.text_label.text = ""; self.current_idx = 0
         self.continue_btn.disabled = True
         Clock.schedule_interval(self.typewriter, 0.03)
 
@@ -178,7 +257,7 @@ class StoryScreen(Screen):
             self.current_idx += 1
         else:
             self.continue_btn.disabled = False
-            return False # Stop clock
+            return False 
 
     def finish_story(self, instance):
         if self.next_node_type == "Combat":
@@ -201,7 +280,11 @@ class MapScreen(Screen):
     def refresh_map(self):
         self.layout.clear_widgets()
         bg_path = 'assets/map_bg.png' if os.path.exists('assets/map_bg.png') else 'assets/card_back.png'
-        self.layout.add_widget(Image(source=bg_path, allow_stretch=True, keep_ratio=False, size_hint=(1, 1), pos_hint={'x':0, 'y':0}, color=(1, 1, 1, 0.35)))
+        self.layout.add_widget(Image(source=bg_path, allow_stretch=True, keep_ratio=False, size_hint=(1, 1), pos_hint={'x':0, 'y':0}, color=(1, 1, 1, 0.45)))
+        
+        # Inject the GLSL Fog Shader over the background
+        self.layout.add_widget(MagicFogOverlay(size_hint=(1, 1), pos_hint={'x':0, 'y':0}))
+        
         self.layout.add_widget(TrailWidget(player.map_nodes, size_hint=(1,1), pos_hint={'x':0, 'y':0}))
         
         for idx, node in enumerate(player.map_nodes):
@@ -406,7 +489,6 @@ class CombatScreen(Screen):
         cards_layout.bind(minimum_width=cards_layout.setter('width'))
         
         for spell in self.hand:
-            # Figure out who owns this spell for the animation
             owner_idx = 0
             for i, e in enumerate(player.team):
                 if spell in e.char_spells or spell == e.ultimate_spell: owner_idx = i; break
@@ -483,7 +565,7 @@ class CombatScreen(Screen):
 class GachaScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.layout = FloatLayout() # Switched to FloatLayout to allow absolute positioning of Gold Counter
+        self.layout = FloatLayout() 
         self.webview = None
         
         main_box = BoxLayout(orientation='vertical')
@@ -505,7 +587,6 @@ class GachaScreen(Screen):
         
         self.layout.add_widget(main_box)
         
-        # Absolute positioned Gold Counter
         self.gold_label = Label(text=f"Gold: {player.currency}\nDust: {player.dust}", size_hint=(None, None), size=(150, 60), pos_hint={'right': 0.95, 'top': 0.95}, color=(1, 0.8, 0.1, 1), bold=True, font_size='18sp', halign='right')
         self.layout.add_widget(self.gold_label)
         
@@ -590,6 +671,7 @@ class GachaScreen(Screen):
                 except Exception: pass
             trigger()
 
+
 class UpgradeScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -618,6 +700,7 @@ class UpgradeScreen(Screen):
         if player.dust >= dust_cost and spell.level < 3:
             player.dust -= dust_cost; spell.level += 1; spell.damage += 5
             player.save_game(); self.refresh_ui()
+
 
 class GrimoireScreen(Screen):
     def __init__(self, **kwargs):
@@ -660,7 +743,6 @@ class GrimoireScreen(Screen):
                 if any(e.name == db_ent.name for e in player.roster): lore_data.append({"name": db_ent.name, "img": db_ent.image_file, "lore": db_ent.lore, "stats": f"Passive: {db_ent.passive_desc}"})
                 else: lore_data.append({"name": "???", "img": "", "lore": "LORE LOCKED - Summon to reveal.", "stats": ""})
             
-            # The exact JSON dump without single quotes surrounding it in Javascript!
             json_data = json.dumps(lore_data)
 
             @run_on_ui_thread
@@ -671,7 +753,6 @@ class GrimoireScreen(Screen):
                 html_path = os.path.abspath(os.path.join('assets', 'grimoire.html'))
                 if os.path.exists(html_path): self.webview.loadUrl(f'file://{html_path}')
                 
-                # FIXED INJECTION: Safe parsing 
                 js_cmd = f"javascript:if(window.loadGrimoire) loadGrimoire({json_data});"
                 self.webview.loadUrl(js_cmd)
                 
@@ -681,6 +762,7 @@ class GrimoireScreen(Screen):
         except Exception: pass
 
     def go_back(self, instance): self.manager.current = 'menu'
+
 
 class ShopScreen(Screen):
     def __init__(self, **kwargs):
@@ -707,6 +789,7 @@ class ShopScreen(Screen):
             player.save_game(); self.refresh_shop()
     def leave_shop(self, instance):
         player.current_tier += 1; player.save_game(); self.manager.get_screen('map').refresh_map(); self.manager.current = 'map'
+
 
 class HangoutScreen(Screen):
     def __init__(self, **kwargs):
