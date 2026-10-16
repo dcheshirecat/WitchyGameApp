@@ -15,6 +15,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Allocate Swap Memory
+        run: |
+          sudo fallocate -l 8G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          free -m
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -31,7 +39,6 @@ jobs:
           pip install buildozer "Cython<3.0" virtualenv
 
       - name: Build APK with Buildozer
-        # 'set -o pipefail' ensures the step fails if buildozer crashes, even when piped to tee
         run: |
           set -o pipefail
           buildozer android debug 2>&1 | tee build_log.txt
