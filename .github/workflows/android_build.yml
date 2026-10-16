@@ -5,7 +5,7 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch: # Allows you to trigger the build manually
+  workflow_dispatch:
 
 jobs:
   build:
@@ -26,16 +26,25 @@ jobs:
           sudo apt-get install -y build-essential git python3-dev ffmpeg libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev libffi-dev libssl-dev zip unzip autoconf libtool pkg-config openjdk-17-jdk
 
       - name: Install Buildozer and Cython
+        # Pinning Cython to <3.0 prevents a major known Kivy compilation crash
         run: |
           pip install --upgrade pip
-          pip install buildozer cython virtualenv
+          pip install buildozer "Cython<3.0" virtualenv
 
       - name: Build APK with Buildozer
         run: buildozer android debug
 
+      - name: 🚨 PRINT EXACT ERROR 🚨
+        if: failure()
+        run: |
+          echo "========================================"
+          echo "BUILD FAILED! FETCHING LOGS:"
+          echo "========================================"
+          cat .buildozer/android/platform/build-arm64-v8a/dists/*/logs/* || echo "No specific log file found. Please scroll up and check the 'Build APK with Buildozer' step output."
+
       - name: Upload APK Artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: WitchyGame-APK
-          # This specifically grabs the single actual APK and ignores the copies
           path: bin/*arm64-v8a-debug.apk
