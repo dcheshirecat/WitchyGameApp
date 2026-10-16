@@ -37,8 +37,9 @@ jobs:
         if: success()
         run: |
           mkdir -p final_apk
-          # Grabs the very first .apk file it finds and cleanly renames it
-          find bin/ -name "*.apk" | head -n 1 | xargs -I {} cp {} final_apk/WitchyGame.apk
+          # Safely find the primary arm64 APK and copy it as WitchyGame.apk
+          APK_FILE=$(ls bin/*arm64-v8a*.apk | head -n 1)
+          cp "$APK_FILE" final_apk/WitchyGame.apk
 
       - name: Upload APK Artifact
         if: success()
