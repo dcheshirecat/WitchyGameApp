@@ -15,29 +15,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: The Nuke Option (Free 40GB Space & 10GB Swap)
+      - name: Free Disk Space
         run: |
-          echo "=== BEFORE CLEANUP ==="
-          df -h
-          
-          # Obliterate heavy, unused GitHub software to free ~35GB of disk space
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/share/boost
-          
-          # Wipe cached docker images
-          sudo docker system prune -a -f
-          
-          # Create a massive 10GB Virtual Memory Swap file
-          sudo fallocate -l 10G /swapfile-extra || sudo dd if=/dev/zero of=/swapfile-extra bs=1M count=10240
-          sudo chmod 600 /swapfile-extra
-          sudo mkswap /swapfile-extra
-          sudo swapon /swapfile-extra
-          
-          echo "=== AFTER CLEANUP ==="
-          df -h
-          free -m
+          # Delete unused massive software to guarantee we don't hit 100% disk usage
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+
+      - name: Cache Buildozer Global Directory
+        # This saves all downloaded libraries. If the build ever crashes, it resumes here instantly.
+        uses: actions/cache@v4
+        with:
+          path: .buildozer
+          key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            buildozer-${{ runner.os }}-
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -55,6 +46,9 @@ jobs:
           pip install buildozer "Cython<3.0" virtualenv
 
       - name: Build APK with Buildozer
+        env:
+          # CRITICAL: Forces single-core compilation. Stops the runner from running out of RAM.
+          MAKEFLAGS: "-j1"
         run: |
           set -o pipefail
           buildozer android debug 2>&1 | tee build_log.txt
