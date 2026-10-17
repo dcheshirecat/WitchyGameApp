@@ -625,9 +625,10 @@ class GachaScreen(Screen):
             wv = self.webview; self.webview = None
             @run_on_ui_thread
             def remove_wv():
-                try: wv.setVisibility(8); wv.loadUrl("about:blank"); parent = wv.getParent(); 
-                if parent: parent.removeView(wv)
-                wv.destroy()
+                try: 
+                    wv.setVisibility(8); wv.loadUrl("about:blank"); parent = wv.getParent()
+                    if parent: parent.removeView(wv)
+                    wv.destroy()
                 except Exception: pass
             remove_wv()
 
