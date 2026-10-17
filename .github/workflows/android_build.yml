@@ -15,20 +15,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Free Disk Space
+      - name: Purify Environment & Free Space
         run: |
-          # Delete unused massive software to guarantee we don't hit 100% disk usage
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          # Obliterate GitHub's pre-installed Android SDK/NDK to prevent compiler collisions
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL
           sudo docker image prune --all --force
-
-      - name: Cache Buildozer Global Directory
-        # This saves all downloaded libraries. If the build ever crashes, it resumes here instantly.
-        uses: actions/cache@v4
-        with:
-          path: .buildozer
-          key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
-          restore-keys: |
-            buildozer-${{ runner.os }}-
+          
+          # Standardize swap memory
+          sudo fallocate -l 4G /swapfile-extra || sudo dd if=/dev/zero of=/swapfile-extra bs=1M count=4096
+          sudo chmod 600 /swapfile-extra
+          sudo mkswap /swapfile-extra
+          sudo swapon /swapfile-extra
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -41,27 +39,29 @@ jobs:
           sudo apt-get install -y build-essential git python3-dev ffmpeg libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev libffi-dev libssl-dev zip unzip autoconf libtool pkg-config openjdk-17-jdk
 
       - name: Install Buildozer and Cython
+        # Pinning Cython to an exact older version known to be highly stable with Kivy
         run: |
           pip install --upgrade pip
-          pip install buildozer "Cython<3.0" virtualenv
+          pip install buildozer Cython==0.29.33 virtualenv
+
+      - name: Force Stable P4A Branch
+        run: |
+          sed -i -e 's/^#* *p4a.branch.*/p4a.branch = release-2024.01.21/' buildozer.spec
 
       - name: Build APK with Buildozer
         env:
-          # CRITICAL: Forces single-core compilation. Stops the runner from running out of RAM.
           MAKEFLAGS: "-j1"
         run: |
           set -o pipefail
           buildozer android debug 2>&1 | tee build_log.txt
 
-      - name: 🚨 PRINT EXACT ERROR FOR SCREENSHOT 🚨
+      - name: 🚨 ISOLATE EXACT CRASH LOG 🚨
         if: failure()
         run: |
           echo "=========================================================="
-          echo "BUILD FAILED! DISPLAYING LAST 100 LINES OF THE CRASH LOG:"
+          echo "ACTUAL COMPILER ERROR (SEARCHING FOR 'Command failed:'):"
           echo "=========================================================="
-          tail -n 100 build_log.txt
-          echo "=========================================================="
-          echo "TAKE A SCREENSHOT OF THE TEXT ABOVE THIS LINE"
+          grep -B 40 -A 10 "Command failed:" build_log.txt || echo "Could not find 'Command failed:'. Please check the downloaded build_log.txt artifact manually."
           echo "=========================================================="
 
       - name: Isolate Single APK
