@@ -53,6 +53,17 @@ jobs:
           set -o pipefail
           buildozer android debug 2>&1 | tee build_log.txt
 
+      - name: 🚨 PRINT EXACT ERROR FOR SCREENSHOT 🚨
+        if: failure()
+        run: |
+          echo "=========================================================="
+          echo "BUILD FAILED! DISPLAYING LAST 100 LINES OF THE CRASH LOG:"
+          echo "=========================================================="
+          tail -n 100 build_log.txt
+          echo "=========================================================="
+          echo "TAKE A SCREENSHOT OF THE TEXT ABOVE THIS LINE"
+          echo "=========================================================="
+
       - name: Isolate Single APK
         if: success()
         run: |
