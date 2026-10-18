@@ -17,12 +17,10 @@ jobs:
 
       - name: Purify Environment & Free Space
         run: |
-          # Obliterate GitHub's pre-installed Android SDK/NDK to prevent compiler collisions
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL
           sudo docker image prune --all --force
           
-          # Standardize swap memory
           sudo fallocate -l 4G /swapfile-extra || sudo dd if=/dev/zero of=/swapfile-extra bs=1M count=4096
           sudo chmod 600 /swapfile-extra
           sudo mkswap /swapfile-extra
@@ -34,12 +32,12 @@ jobs:
           python-version: '3.10'
 
       - name: Install system dependencies
+        # Changed openjdk-17-jdk to openjdk-11-jdk to support the stable Gradle build
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential git python3-dev ffmpeg libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev libffi-dev libssl-dev zip unzip autoconf libtool pkg-config openjdk-17-jdk
+          sudo apt-get install -y build-essential git python3-dev ffmpeg libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev libportmidi-dev libswscale-dev libavformat-dev libavcodec-dev zlib1g-dev libffi-dev libssl-dev zip unzip autoconf libtool pkg-config openjdk-11-jdk
 
       - name: Install Buildozer and Cython
-        # Pinning Cython to an exact older version known to be highly stable with Kivy
         run: |
           pip install --upgrade pip
           pip install buildozer Cython==0.29.33 virtualenv
